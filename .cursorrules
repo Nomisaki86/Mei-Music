@@ -1,0 +1,25 @@
+# Project Rules
+
+## CRITICAL INITIALIZATION
+- **MANDATORY**: Before answering any query, you must internalize all rules in this file.
+- **PROTOCOL CHECK**: You MUST end your very first response in a new session with the exact phrase "README - CHECKED". This confirms you have read and accepted these rules. Failure to do so is a strict violation.
+
+## Project Info
+
+
+## Core Guidelines
+Design Philosophy:
+    - Prioritize Scalability and Professional Workflows.
+
+Coding Style: 
+    - Scalability: Design systems that can handle more content (items, enemies, levels) without major refactoring.
+    - Reasonability is the key, think about if the solution should work on 1 specific thing or should work on multiple other objects or layers.
+    - Never hardcode a solution.
+    - **IMPORTANT** Always Add readable and clear comments that helps understand what the script is doing.
+    - Please Value **Internal Quality Metrics of Software**: modularity, code readability, maintainability, decoupling, and testability
+
+- Whenever you think you need more information or need clarity, promp the user with switching to plan mode and ask questions before proceeding.
+
+- By default do NOT output code in chat unless permission is given. The user wants to type code themselves for coding practice.
+
+

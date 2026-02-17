@@ -1,4 +1,4 @@
-﻿using System.Windows;
+using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
@@ -14,6 +14,7 @@ using Newtonsoft.Json;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Collections.ObjectModel;
+using Mei_Music.Models;
 
 
 
@@ -94,33 +95,6 @@ namespace Mei_Music
         protected void OnPropertyChanged(string propertyName)
         {
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
-        }
-
-        //------------------------- Data Structure -----------------------------------------
-        public class Song : INotifyPropertyChanged
-        {
-            public string? Index { get; set; }
-            public string? Name { get; set; }
-
-            private double volume = 50;
-            public double Volume
-            {
-                get => volume;
-                set
-                {
-                    if (volume != value)
-                    {
-                        volume = value;
-                        OnPropertyChanged(nameof(Volume));
-                    }
-                }
-            }
-
-            public event PropertyChangedEventHandler? PropertyChanged;
-            protected void OnPropertyChanged(string propertyName)
-            {
-                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
-            }
         }
 
         //------------------------- Add Audio Implementation -------------------------------
@@ -232,21 +206,21 @@ namespace Mei_Music
 
             if (isDuplicate) //if name already exists in the list
             {
-                DuplicateDileDialog dialog = new DuplicateDileDialog();
+                DuplicateFileDialog dialog = new DuplicateFileDialog();
                 dialog.Owner = this;
                 if (dialog.ShowDialog() == true)
                 {
                     switch (dialog.SelectedAction)
                     {
-                        case DuplicateDileDialog.DuplicateFileAction.Replace:
+                        case DuplicateFileDialog.DuplicateFileAction.Replace:
                             ReplaceFileInUI(filePath);
                             break;
 
-                        case DuplicateDileDialog.DuplicateFileAction.Rename:
+                        case DuplicateFileDialog.DuplicateFileAction.Rename:
                             PromptForNewName(filePath);
                             break;
 
-                        case DuplicateDileDialog.DuplicateFileAction.Cancel:
+                        case DuplicateFileDialog.DuplicateFileAction.Cancel:
                             return;
                     }
                 }
@@ -908,7 +882,7 @@ namespace Mei_Music
                         {
                             Index = loadedSong.Index,
                             Name = loadedSong.Name,
-                            Volume = (loadedSong.Volume >= 0 && loadedSong.Volume <= 100) ? loadedSong.Volume : 50 // Set default if volume is invalid
+                            Volume = (loadedSong.Volume > 100) ? 100 : (loadedSong.Volume < 0 ? 50 : loadedSong.Volume) // Adjust volume based on conditions
                         };
 
                         // Add the newly created Song object to the Songs collection

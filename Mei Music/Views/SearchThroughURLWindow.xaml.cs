@@ -22,6 +22,7 @@ namespace Mei_Music
     public partial class SearchThroughURLWindow : Window
     {
         MainWindow mainWindow;
+
         public SearchThroughURLWindow(MainWindow main_Window)
         {
             InitializeComponent();
@@ -41,7 +42,38 @@ namespace Mei_Music
                 PlaceholderText.Visibility = Visibility.Visible;
             }
         }
-        private void SearchButton_Click(object sender, RoutedEventArgs e)
+        private void ConvertWebMToMp4(string inputWebMPath, string outputMp4Path)
+        {
+            try
+            {
+                string ffmpegPath = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Resources", "ffmpeg", "ffmpeg.exe");
+
+                ProcessStartInfo startInfo = new ProcessStartInfo
+                {
+                    FileName = ffmpegPath,
+                    Arguments = $"-i \"{inputWebMPath}\" -c:v copy -c:a copy \"{outputMp4Path}\" -y",
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                };
+
+                using (Process process = Process.Start(startInfo))
+                {
+                    string error = process.StandardError.ReadToEnd();
+                    process.WaitForExit();
+                    if (process.ExitCode != 0)
+                    {
+                        MessageBox.Show($"FFmpeg failed to convert .webm to .mp4: {error}");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Failed to convert .webm to .mp4: {ex.Message}");
+            }
+        }
+        private async void SearchButton_Click(object sender, RoutedEventArgs e)
         {
             ProcessingProgressBar.Visibility = Visibility.Visible;
             ProcessingText.Visibility = Visibility.Visible;
@@ -50,6 +82,7 @@ namespace Mei_Music
             if (string.IsNullOrEmpty(videoUrl))
             {
                 MessageBox.Show("Please enter a valid URL.");
+                HideProcessingUI();
                 return;
             }
 
@@ -57,10 +90,10 @@ namespace Mei_Music
             if (string.IsNullOrEmpty(customFileName))
             {
                 MessageBox.Show("File name cannot be empty.");
+                HideProcessingUI();
                 return;
             }
 
-            // Define paths for both downloaded files and final output
             string downloadedDirectory = System.IO.Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
                 "Mei Music",
@@ -79,56 +112,125 @@ namespace Mei_Music
 
             string finalVideoPath = System.IO.Path.Combine(finalVideoDirectory, customFileName + ".mp4");
 
-          
-            DownloadVideo(videoUrl, downloadedDirectory);
-            
-           
-            // Check downloaded files
-            var downloadedFiles = Directory.GetFiles(downloadedDirectory);
-            var downloadedVideoPath = downloadedFiles.FirstOrDefault(f => f.EndsWith(".mp4"));
-            var downloadedAudioPath = downloadedFiles.FirstOrDefault(f => f.EndsWith(".m4a"));
-            
-            // Verify if the files were downloaded correctly
-            if (downloadedVideoPath == null)
+            try
             {
-                MessageBox.Show("Video file was not downloaded.");
-                return;
-            }
+                // 1) Download in the background
+                await Task.Run(() => DownloadVideo(videoUrl, downloadedDirectory));
 
-            if (downloadedAudioPath != null)
-            {
-                // Step 3: Convert m4a to aac for compatibility
-                string aacAudioPath = ConvertM4aToAac(downloadedAudioPath);
-                if (aacAudioPath != null)
+                // 2) Examine the downloaded files
+                var downloadedFiles = Directory.GetFiles(downloadedDirectory);
+
+                //=========================================================
+                //[NEW CODE: Convert all.webm files in the directory to.mp4]
+                //=========================================================
+                var webmFiles = downloadedFiles.Where(f => f.EndsWith(".webm", StringComparison.OrdinalIgnoreCase)).ToArray();
+                if (webmFiles.Length > 0)
                 {
-                    // Step 4: Combine the video and converted audio
-                    CombineVideoAndAudio(downloadedVideoPath, aacAudioPath, finalVideoPath);
+                    foreach (string webmFile in webmFiles)
+                    {
+                        // For each .webm, convert to .mp4
+                        string mp4Path = System.IO.Path.ChangeExtension(webmFile, ".mp4");
+                        await Task.Run(() => ConvertWebMToMp4(webmFile, mp4Path));
+                    }
+                }
+
+                //After potential conversions, refresh the file list
+                downloadedFiles = Directory.GetFiles(downloadedDirectory);
+
+                // 3) Check if we have an mp4 or m4a
+                var downloadedVideoPath = downloadedFiles.FirstOrDefault(f => f.EndsWith(".mp4", StringComparison.OrdinalIgnoreCase));
+                var downloadedAudioPath = downloadedFiles.FirstOrDefault(f => f.EndsWith(".m4a", StringComparison.OrdinalIgnoreCase));
+
+                // If we still don't have an .mp4, fail out
+                if (downloadedVideoPath == null)
+                {
+                    // Look for an MP3 file
+                    var downloadedMp3 = downloadedFiles
+                        .FirstOrDefault(f => f.EndsWith(".mp3", StringComparison.OrdinalIgnoreCase));
+
+                    if (downloadedMp3 != null)
+                    {
+                        // Move the MP3 to the playlist directory
+                        string playlistDirectory = System.IO.Path.Combine(
+                            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                            "Mei Music",
+                            "playlist");
+
+                        Directory.CreateDirectory(playlistDirectory);
+
+                        // === NEW: Rename MP3 to your customFileName ===
+                        string mp3FinalName = customFileName + ".mp3";
+                        string mp3FinalPath = System.IO.Path.Combine(playlistDirectory, mp3FinalName);
+
+                        // Move and rename the MP3 file
+                        File.Move(downloadedMp3, mp3FinalPath);
+
+                        // === NEW: Add this MP3 file to your UI
+                        mainWindow.AddFileToUI(mp3FinalPath);
+
+                        //MessageBox.Show($"Video was not downloaded, but the audio was found and saved as '{mp3FinalName}' in your playlist.");
+                    }
+                    else
+                    {
+                        // If no .mp3 either, then we truly have no content to work with
+                        MessageBox.Show("Video file was not downloaded.");
+                    }
+
+                    HideProcessingUI();
+                    return;
+                }
+
+                // 4) Combine if .m4a exists, otherwise copy the .mp4 to final location
+                if (downloadedAudioPath != null)
+                {
+                    string aacAudioPath = await Task.Run(() => ConvertM4aToAac(downloadedAudioPath));
+                    if (aacAudioPath != null)
+                    {
+                        await Task.Run(() => CombineVideoAndAudio(downloadedVideoPath, aacAudioPath, finalVideoPath));
+                    }
+                    else
+                    {
+                        MessageBox.Show("AAC conversion failed.");
+                        HideProcessingUI();
+                        return;
+                    }
                 }
                 else
                 {
-                    MessageBox.Show("AAC conversion failed.");
+                    File.Copy(downloadedVideoPath, finalVideoPath, overwrite: true);
+                }
+
+                // 5) Clean up the temporary downloaded files
+                Directory.GetFiles(downloadedDirectory).ToList().ForEach(File.Delete);
+
+                // 6) If final mp4 exists, add to main UI and convert to audio for playlist
+                if (File.Exists(finalVideoPath))
+                {
+                    mainWindow.AddFileToUI(finalVideoPath);
+                    await Task.Run(() => ConvertVideoToAudio(finalVideoPath));
                 }
             }
-            else
+            catch (Exception ex)
             {
-                // Case 1: Only the video file exists, so use it as the final output
-                File.Copy(downloadedVideoPath, finalVideoPath, overwrite: true);
+                MessageBox.Show($"An error occurred: {ex.Message}");
             }
-
-            // Clean up downloaded files in temp/downloaded
-            Directory.GetFiles(downloadedDirectory).ToList().ForEach(File.Delete);
-
-            if (File.Exists(finalVideoPath))
+            finally
             {
-                // Add the final combined video to the UI
-                mainWindow.AddFileToUI(finalVideoPath);
-                ConvertVideoToAudio(finalVideoPath);
+                HideProcessingUI();
             }
-
-            ProcessingProgressBar.Visibility = Visibility.Collapsed;
-            ProcessingText.Visibility = Visibility.Collapsed;
         }
-        private void DownloadVideo(string videoUrl, string downloadDirectory) // Download video from URL
+
+
+
+        private void HideProcessingUI()
+        {
+            Dispatcher.Invoke(() =>
+            {
+                ProcessingProgressBar.Visibility = Visibility.Collapsed;
+                ProcessingText.Visibility = Visibility.Collapsed;
+            });
+        }
+        private void DownloadVideo(string videoUrl, string downloadDirectory)
         {
             try
             {
@@ -139,40 +241,60 @@ namespace Mei_Music
                 string videoFilePath = System.IO.Path.Combine(downloadDirectory, $"{sanitizedFileName}.mp4");
 
                 // Define the arguments based on the site URL
-                string arguments;
                 if (videoUrl.StartsWith("https://www.bilibili.com/"))
                 {
-                    // For Bilibili: Download best video and audio separately, but avoid playlists
-                    arguments = $"--no-playlist --format \"bestvideo+bestaudio/best\" -o \"{System.IO.Path.Combine(downloadDirectory, "%(title)s.%(ext)s")}\" \"{videoUrl}\"";
-                }
-                else
-                {
-                    // For all other sites: Download best single format and avoid playlists
-                    arguments = $"--no-playlist --format best -o \"{videoFilePath}\" \"{videoUrl}\"";
-                }
+                    // For Bilibili: Download best video and audio, avoid playlists
+                    // (Leave your Bilibili code intact.)
+                    string bilibiliArgs =
+                        $"--no-playlist --format \"bestvideo+bestaudio/best\" -o \"{System.IO.Path.Combine(downloadDirectory, "%(title)s.%(ext)s")}\" \"{videoUrl}\"";
 
-                ProcessStartInfo startInfo = new ProcessStartInfo
-                {
-                    FileName = ytDlpPath,
-                    Arguments = arguments,
-                    RedirectStandardOutput = true, // Capture processing info
-                    RedirectStandardError = true,  // Capture processing errors
-                    UseShellExecute = false,
-                    CreateNoWindow = true
-                };
-
-                using (Process? process = Process.Start(startInfo))
-                {
-                    process.WaitForExit(); // Synchronously wait for process to complete
-
-                    string error = process.StandardError.ReadToEnd();
-                    if (process.ExitCode != 0)
+                    if (!RunYtDlp(ytDlpPath, bilibiliArgs))
                     {
-                        MessageBox.Show($"Download failed with error: {error}");
+                        MessageBox.Show("Failed to download from Bilibili.");
                         return;
                     }
                 }
+                else
+                {
+                    // ============================
+                    // YOUTUBE LOGIC: TRY VIDEO FIRST
+                    // ============================
 
+                    //string youtubeVideoArgs =
+                    //    $"--no-playlist " +
+                    //    $"-o \"{System.IO.Path.Combine(downloadDirectory, "%(title)s.%(ext)s")}\" " +
+                    //    $"\"{videoUrl}\"";
+
+                    //bool videoSuccess = RunYtDlp(ytDlpPath, youtubeVideoArgs);
+                    bool videoSuccess = false;
+
+                    if (!videoSuccess)
+                    {
+                        // If full video download fails, clear directory then do audio-only
+                        Directory.GetFiles(downloadDirectory).ToList().ForEach(File.Delete);
+
+                        // ============================
+                        // YOUTUBE LOGIC: THEN TRY AUDIO
+                        // ============================
+                        string youtubeAudioArgs =
+                            $"--no-playlist -f bestaudio " +
+                            $"--extract-audio " +
+                            $"--audio-format mp3 " +
+                            $"--audio-quality 0 " +
+                            $"-o \"{System.IO.Path.Combine(downloadDirectory, "%(title)s.%(ext)s")}\" " +
+                            $"\"{videoUrl}\"";
+
+                        bool audioSuccess = RunYtDlp(ytDlpPath, youtubeAudioArgs);
+                        if (!audioSuccess)
+                        {
+                            // If both attempts fail, we exit
+                            MessageBox.Show("Could not download either video or audio from YouTube.");
+                            return;
+                        }
+                    }
+                }
+
+                // After the above, continue as usual:
                 var downloadedFiles = Directory.GetFiles(downloadDirectory);
                 if (downloadedFiles.Length > 2)
                 {
@@ -185,18 +307,50 @@ namespace Mei_Music
                     }
                 }
 
-                downloadedFiles = Directory.GetFiles(downloadDirectory, "*.mp4").Concat(Directory.GetFiles(downloadDirectory, "*.m4a")).ToArray();
-                if (downloadedFiles.Length == 0 || !downloadedFiles.Any(f => f.EndsWith(".mp4")))
-                {
-                    MessageBox.Show("No video was downloaded. The URL may be invalid or the video is not available.");
-                    return;
-                }
+                downloadedFiles = Directory.GetFiles(downloadDirectory, "*.mp4")
+                                           .Concat(Directory.GetFiles(downloadDirectory, "*.m4a"))
+                                           .ToArray();
+
+                // If no *.mp4 was downloaded, you might handle that differently if you need an actual video file.
+                // If you're okay with audio-only, adjust accordingly.
+                //if (downloadedFiles.Length == 0 || !downloadedFiles.Any(f => f.EndsWith(".mp4")))
+                //{
+                //    MessageBox.Show("No video was downloaded. The URL may be invalid or the video is not available.");
+                //    return;
+                //}
             }
             catch (Exception ex)
             {
                 MessageBox.Show($"An error occurred during download: {ex.Message}");
             }
         }
+        private bool RunYtDlp(string ytDlpPath, string arguments)
+        {
+            var startInfo = new ProcessStartInfo
+            {
+                FileName = ytDlpPath,
+                Arguments = arguments,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
+
+            using (Process process = Process.Start(startInfo))
+            {
+                process.WaitForExit(); // Wait for the process to complete
+                if (process.ExitCode != 0)
+                {
+                    string error = process.StandardError.ReadToEnd();
+                    // Optionally log or show the error for debugging
+                    Debug.WriteLine($"yt-dlp error: {error}");
+                    return false; // indicate failure
+                }
+            }
+
+            return true; // indicate success
+        }
+
         private async Task MonitorDirectoryForFileLimit(string directory, Process process, int maxFiles)
         {
             try

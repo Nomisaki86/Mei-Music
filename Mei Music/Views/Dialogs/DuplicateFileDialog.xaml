@@ -1,4 +1,4 @@
-﻿<Window x:Class="Mei_Music.DuplicateDileDialog"
+<Window x:Class="Mei_Music.DuplicateFileDialog"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
@@ -12,9 +12,9 @@
                    FontSize="16" Margin="0,0,0,20" HorizontalAlignment="Center">
         </TextBlock>
         <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,10,0,0">
-            <Button x:Name="RenameBtn" Content="rename" Width="80"  Height="20"  Margin="0,0,0,10" Click="RenameBtn_Click"/>
-            <Button x:Name="ReplaceBtn" Content="replace" Width="80" Height="20" Margin="10,0,0,10" Click="ReplaceBtn_Click"/>
-            <Button x:Name="CancelBtn" Content="cancel" Width="80" Height="20" Margin="10,0,0,10" Click="CancelBtn_Click"/>
+            <Button x:Name="RenameBtn" Content="Rename" Style="{StaticResource DialogButtonStyle}" Click="RenameBtn_Click"/>
+            <Button x:Name="ReplaceBtn" Content="Replace" Style="{StaticResource DialogButtonStyle}" Click="ReplaceBtn_Click"/>
+            <Button x:Name="CancelBtn" Content="Cancel" Style="{StaticResource DialogButtonStyle}" Click="CancelBtn_Click"/>
         </StackPanel>
     </StackPanel>
 </Window>

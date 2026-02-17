@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -14,7 +14,7 @@ using System.Windows.Shapes;
 
 namespace Mei_Music
 {
-    public partial class DuplicateDileDialog
+    public partial class DuplicateFileDialog
         : Window
     {
         public enum DuplicateFileAction
@@ -25,7 +25,7 @@ namespace Mei_Music
         }
 
         public DuplicateFileAction SelectedAction { get; private set; }
-        public DuplicateDileDialog()
+        public DuplicateFileDialog()
         {
             InitializeComponent();
             SelectedAction = DuplicateFileAction.Cancel; //default cancel when closed

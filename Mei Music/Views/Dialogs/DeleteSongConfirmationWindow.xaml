@@ -1,4 +1,4 @@
-﻿<Window x:Class="Mei_Music.DeleteSongConfirmationWindow"
+<Window x:Class="Mei_Music.DeleteSongConfirmationWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
@@ -18,8 +18,8 @@
 
         <!-- Buttons -->
         <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
-            <Button Content="Yes" Width="75" Margin="5" Click="YesButton_Click"/>
-            <Button Content="No" Width="75" Margin="5" Click="NoButton_Click"/>
+            <Button Content="Yes" Style="{StaticResource DialogButtonStyle}" Click="YesButton_Click"/>
+            <Button Content="No" Style="{StaticResource DialogButtonStyle}" Click="NoButton_Click"/>
         </StackPanel>
     </StackPanel>
 </Window>

@@ -1,4 +1,4 @@
-﻿<Window  x:Class="Mei_Music.MainWindow"
+<Window  x:Class="Mei_Music.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Mei Music" Height="500" Width="900"
@@ -7,81 +7,10 @@
         WindowStyle="None"
         ResizeMode="CanResizeWithGrip"
         Background="#1E1E1E">
-    
+
     <WindowChrome.WindowChrome>
         <WindowChrome CaptionHeight="0" ResizeBorderThickness="5" GlassFrameThickness="0" UseAeroCaptionButtons="False"/>
     </WindowChrome.WindowChrome>
-
-    <Window.Resources>
-        <!-- Style for Custom Buttons -->
-        <Style x:Key="CustomButtonStyle" TargetType="Button">
-            <!-- Default appearance -->
-            <Setter Property="Background" Value="Transparent"/>
-            <Setter Property="Foreground" Value="Black"/>
-            <Setter Property="BorderBrush" Value="Transparent"/>
-            <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="Cursor" Value="Hand"/>
-
-            <!-- Disabled appearance (same as enabled) -->
-            <Style.Triggers>
-                <Trigger Property="IsEnabled" Value="False">
-                    <Setter Property="Background" Value="#ebecf0"/>
-                    <Setter Property="Foreground" Value="Black"/>
-                    <Setter Property="BorderBrush" Value="Transparent"/>
-                    <Setter Property="BorderThickness" Value="0"/>
-                </Trigger>
-            </Style.Triggers>
-        </Style>
-
-        <!-- Style for Play Song Buttons-->
-        <Style x:Key="PlaySongButtonStyle" TargetType="Button">
-            <Setter Property="Background" Value="Transparent"/>
-            <Setter Property="BorderBrush" Value="Transparent"/>
-            <Setter Property="Cursor" Value="Hand"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <Border Background="{TemplateBinding Background}" 
-                        BorderBrush="{TemplateBinding BorderBrush}" 
-                        BorderThickness="1" 
-                        CornerRadius="5">
-                            <ContentPresenter HorizontalAlignment="Center" 
-                                      VerticalAlignment="Center"/>
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <!-- Hover State -->
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter Property="Background" Value="DarkGray"/>
-                                <!-- Custom hover color -->
-                                <Setter Property="BorderBrush" Value="#FFB0B0B0"/>
-                                <!-- Custom hover border color -->
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
-        <!-- Style for dropdown list items with hover effect -->
-        <Style x:Key="DropdownItemStyle" TargetType="Button">
-            <Setter Property="Background" Value="Transparent"/>
-            <Setter Property="BorderBrush" Value="Transparent"/>
-            <Setter Property="HorizontalContentAlignment" Value="Left"/>
-            <Setter Property="Padding" Value="7"/>
-            <Setter Property="Cursor" Value="Hand"/>
-            <Setter Property="Foreground" Value="#ebf2f4"/>
-            <Style.Triggers>
-                <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="Background" Value="#333333"/>
-                </Trigger>
-                <Trigger Property="IsEnabled" Value="False">
-                    <Setter Property="Background" Value="Transparent"/>
-                    <Setter Property="Foreground" Value="Black"/>
-                    <Setter Property="BorderBrush" Value="Transparent"/>
-                </Trigger>
-            </Style.Triggers>
-        </Style>
-    </Window.Resources>
 
     <Grid>
         <Grid.RowDefinitions>
@@ -101,9 +30,9 @@
 
                 <!-- Right Side (window control buttons) -->
                 <StackPanel Orientation="Horizontal" DockPanel.Dock="Right" Margin="0,0,10,0" HorizontalAlignment="Right" VerticalAlignment="Center">
-                    <Button Content="─" Width="25" Height="25" Click="Minimize_Click" Style="{StaticResource TitleBarButtonStyle}" />
-                    <Button Content="☐" Width="25" Height="25" Click="Maximize_Click" Style="{StaticResource TitleBarButtonStyle}" />
-                    <Button Content="✕" Width="25" Height="25" Click="Close_Click" Style="{StaticResource TitleBarCloseButtonStyle}" />
+                    <Button Content="─" Click="Minimize_Click" Style="{StaticResource TitleBarButtonStyle}" />
+                    <Button Content="☐" Click="Maximize_Click" Style="{StaticResource TitleBarButtonStyle}" />
+                    <Button Content="✕" Click="Close_Click" Style="{StaticResource TitleBarCloseButtonStyle}" />
                 </StackPanel>
 
             </DockPanel>
@@ -143,13 +72,9 @@
                             <Button x:Name="PlusButton"
                                     ToolTip="Upload Audio"
                                     FontSize="25"
-                                    Width="25"
-                                    Height="25"
                                     Margin="0,0,70,0"
-                                    HorizontalAlignment="Right"
-                                    VerticalAlignment="Center"
                                     Click="PlusButton_Click"
-                                    Style="{StaticResource CustomButtonStyle}">
+                                    Style="{StaticResource PlaylistToolbarButtonStyle}">
                                 <TextBlock Text="+" 
                                            FontSize="20"
                                            VerticalAlignment="Center" 
@@ -176,12 +101,9 @@
                             <Button x:Name="RefreshButton" 
                                     ToolTip="Refresh List"
                                     FontSize="20"
-                                    Height="25"
-                                    Width="25"
                                     Margin="0,0,40,0"
-                                    HorizontalAlignment="Right"
                                     Click="RefreshButton_Click"
-                                    Style="{StaticResource CustomButtonStyle}">
+                                    Style="{StaticResource PlaylistToolbarButtonStyle}">
                                 <TextBlock Text="⟳" 
                                            FontSize="16"
                                            VerticalAlignment="Center" 
@@ -193,13 +115,9 @@
                             <Button x:Name="SortButton" 
                                     ToolTip="Sort List"
                                     Content="↑↓" 
-                                    Width="25" 
-                                    Height="25" 
                                     Margin="0,0,12,0"
-                                    HorizontalAlignment="Right" 
-                                    VerticalAlignment="Center" 
                                     Click="SortButton_Click"
-                                    Style="{StaticResource CustomButtonStyle}"/>
+                                    Style="{StaticResource PlaylistToolbarButtonStyle}"/>
 
                             <!-- Sort Popup Menu -->
                             <Popup x:Name="SortPopupMenu" 
@@ -250,13 +168,9 @@
                                         <!-- Rename Button -->
                                         <Button Content="🖊" 
                                         ToolTip="Rename"
-                                        Width="17" 
-                                        Height="17" 
-                                        VerticalAlignment="Center" 
-                                        HorizontalAlignment="Right"
                                         Click="RenameSong_Click" 
                                         Tag="{Binding Name}"
-                                        Style="{StaticResource CustomButtonStyle}"
+                                        Style="{StaticResource SongItemActionButtonStyle}"
                                         Grid.Column="2"
                                         Margin="0,0,72,0"/>
 
@@ -264,39 +178,27 @@
                                         <Button x:Name="SongVolumeButton" 
                                         ToolTip="Change volume"
                                         Content="🔊" 
-                                        Width="17" 
-                                        Height="17" 
-                                        VerticalAlignment="Center" 
-                                        HorizontalAlignment="Right"
                                         Click="SongVolumeButton_Click" 
                                         Tag="{Binding Name}"
-                                        Style="{StaticResource CustomButtonStyle}"
+                                        Style="{StaticResource SongItemActionButtonStyle}"
                                         Grid.Column="2"
                                         Margin="0,0,50,0"/>
 
                                         <!-- Folder Button -->
                                         <Button Content="📂" 
                                         ToolTip="Open path"
-                                        Width="17" 
-                                        Height="17" 
-                                        VerticalAlignment="Center" 
-                                        HorizontalAlignment="Right"
                                         Click="OpenFolder_Click" 
                                         Tag="{Binding}" 
-                                        Style="{StaticResource CustomButtonStyle}"
+                                        Style="{StaticResource SongItemActionButtonStyle}"
                                         Grid.Column="2"
                                         Margin="0,0,27,0"/>
 
                                         <!-- Delete Button -->
                                         <Button Content="❌" 
                                         ToolTip="Delete"
-                                        Width="17" 
-                                        Height="17" 
-                                        VerticalAlignment="Center" 
-                                        HorizontalAlignment="Right"
                                         Click="DeleteSong_Click" 
                                         Tag="{Binding}" 
-                                        Style="{StaticResource CustomButtonStyle}"
+                                        Style="{StaticResource SongItemActionButtonStyle}"
                                         Grid.Column="2"
                                         Margin="0,0,5,0"/>
 
@@ -304,7 +206,7 @@
                                 </DataTemplate>
                             </ListBox.ItemTemplate>
                         </ListBox>
-                     
+
 
                     </Grid>
                 </Border>
@@ -322,32 +224,32 @@
                     </Grid.ColumnDefinitions>
 
                     <!-- Previous Song Button-->
-                    <Button Grid.Column="0" Width="50" FontSize="25" 
+                    <Button Grid.Column="0" FontSize="25" 
                             Margin="25,0,-5,0" HorizontalAlignment="Left" 
                             RenderOptions.BitmapScalingMode="Fant"
                             x:Name="PreviousSongButton"
                             Click="PreviousSongClicked"
-                            Style="{StaticResource PlaySongButtonStyle}">
+                            Style="{StaticResource TransportControlButtonStyle}">
                         <Image Source="/Resources/Images/previous_button.png" Width="45" Height="45"/>
                     </Button>
 
                     <!-- Stop Song Button-->
-                    <Button Grid.Column="1" Width="50" Padding="0,0,0,1" FontSize="33" 
+                    <Button Grid.Column="1" Padding="0,0,0,1" FontSize="33" 
                             x:Name="StopSongButton"
                             Click="StopSongClicked"
-                            Margin="5,0,5,0"
+                            Margin="5,0,0,0"
                             RenderOptions.BitmapScalingMode="Fant"
-                            HorizontalAlignment="Center" Style="{StaticResource PlaySongButtonStyle}">
+                            HorizontalAlignment="Left" Style="{StaticResource TransportControlButtonStyle}">
                         <Image Source="/Resources/Images/pause_button.png" Width="35" Height="35"/>
                     </Button>
 
                     <!-- Next Song Button-->
-                    <Button Grid.Column="2" Width="50" FontSize="25" 
+                    <Button Grid.Column="2" FontSize="25" 
                             Margin="-5,0,20,0" HorizontalAlignment="Right"
                             RenderOptions.BitmapScalingMode="Fant"
                             x:Name="NextSongButton"
                             Click="NextSongClicked"
-                            Style="{StaticResource PlaySongButtonStyle}">
+                            Style="{StaticResource TransportControlButtonStyle}">
                         <Image Source="/Resources/Images/next_button.png" Width="45" Height="45"/>
                     </Button>
 
@@ -374,7 +276,7 @@
                                 SelectionEnd="{Binding Value, ElementName=SongProgressSlider}"
                                 Style="{DynamicResource SongProgressCustomSlider}">
                         </Slider>
-                        
+
                         <Label x:Name="SongLength_Timer" Grid.Column="2" Content="00:00" Margin="5,0,0,0"/>
                     </Grid>
 
