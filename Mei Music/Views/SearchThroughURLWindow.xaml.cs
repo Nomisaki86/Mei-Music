@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
@@ -42,6 +42,10 @@ namespace Mei_Music
                 PlaceholderText.Visibility = Visibility.Visible;
             }
         }
+
+        /// <summary>
+        /// Remuxes a downloaded .webm file into .mp4 without re-encoding streams.
+        /// </summary>
         private void ConvertWebMToMp4(string inputWebMPath, string outputMp4Path)
         {
             try
@@ -58,7 +62,14 @@ namespace Mei_Music
                     CreateNoWindow = true
                 };
 
-                using (Process process = Process.Start(startInfo))
+                Process? process = Process.Start(startInfo);
+                if (process == null)
+                {
+                    MessageBox.Show("Failed to start FFmpeg for webm conversion.");
+                    return;
+                }
+
+                using (process)
                 {
                     string error = process.StandardError.ReadToEnd();
                     process.WaitForExit();
@@ -73,6 +84,11 @@ namespace Mei_Music
                 MessageBox.Show($"Failed to convert .webm to .mp4: {ex.Message}");
             }
         }
+
+        /// <summary>
+        /// End-to-end URL import flow: download media, normalize/merge formats,
+        /// move final files to app storage, then update the main playlist UI.
+        /// </summary>
         private async void SearchButton_Click(object sender, RoutedEventArgs e)
         {
             ProcessingProgressBar.Visibility = Visibility.Visible;
@@ -108,6 +124,7 @@ namespace Mei_Music
 
             Directory.CreateDirectory(downloadedDirectory);
             Directory.CreateDirectory(finalVideoDirectory);
+            // Start from a clean temp folder so stale files are not mistaken for this run.
             Directory.GetFiles(downloadedDirectory).ToList().ForEach(File.Delete);
 
             string finalVideoPath = System.IO.Path.Combine(finalVideoDirectory, customFileName + ".mp4");
@@ -120,15 +137,12 @@ namespace Mei_Music
                 // 2) Examine the downloaded files
                 var downloadedFiles = Directory.GetFiles(downloadedDirectory);
 
-                //=========================================================
-                //[NEW CODE: Convert all.webm files in the directory to.mp4]
-                //=========================================================
+                // Some sites return .webm; convert each one so downstream logic only handles .mp4.
                 var webmFiles = downloadedFiles.Where(f => f.EndsWith(".webm", StringComparison.OrdinalIgnoreCase)).ToArray();
                 if (webmFiles.Length > 0)
                 {
                     foreach (string webmFile in webmFiles)
                     {
-                        // For each .webm, convert to .mp4
                         string mp4Path = System.IO.Path.ChangeExtension(webmFile, ".mp4");
                         await Task.Run(() => ConvertWebMToMp4(webmFile, mp4Path));
                     }
@@ -144,7 +158,7 @@ namespace Mei_Music
                 // If we still don't have an .mp4, fail out
                 if (downloadedVideoPath == null)
                 {
-                    // Look for an MP3 file
+                    // Fallback: yt-dlp may have produced audio-only; keep that workflow usable.
                     var downloadedMp3 = downloadedFiles
                         .FirstOrDefault(f => f.EndsWith(".mp3", StringComparison.OrdinalIgnoreCase));
 
@@ -158,14 +172,13 @@ namespace Mei_Music
 
                         Directory.CreateDirectory(playlistDirectory);
 
-                        // === NEW: Rename MP3 to your customFileName ===
+                        // Normalize output name so URL imports follow the same naming rule.
                         string mp3FinalName = customFileName + ".mp3";
                         string mp3FinalPath = System.IO.Path.Combine(playlistDirectory, mp3FinalName);
 
-                        // Move and rename the MP3 file
                         File.Move(downloadedMp3, mp3FinalPath);
 
-                        // === NEW: Add this MP3 file to your UI
+                        // Register this imported file in the main playlist immediately.
                         mainWindow.AddFileToUI(mp3FinalPath);
 
                         //MessageBox.Show($"Video was not downloaded, but the audio was found and saved as '{mp3FinalName}' in your playlist.");
@@ -183,7 +196,7 @@ namespace Mei_Music
                 // 4) Combine if .m4a exists, otherwise copy the .mp4 to final location
                 if (downloadedAudioPath != null)
                 {
-                    string aacAudioPath = await Task.Run(() => ConvertM4aToAac(downloadedAudioPath));
+                    string? aacAudioPath = await Task.Run(() => ConvertM4aToAac(downloadedAudioPath));
                     if (aacAudioPath != null)
                     {
                         await Task.Run(() => CombineVideoAndAudio(downloadedVideoPath, aacAudioPath, finalVideoPath));
@@ -230,6 +243,10 @@ namespace Mei_Music
                 ProcessingText.Visibility = Visibility.Collapsed;
             });
         }
+
+        /// <summary>
+        /// Downloads media with yt-dlp and applies source-specific fallback rules.
+        /// </summary>
         private void DownloadVideo(string videoUrl, string downloadDirectory)
         {
             try
@@ -256,16 +273,8 @@ namespace Mei_Music
                 }
                 else
                 {
-                    // ============================
-                    // YOUTUBE LOGIC: TRY VIDEO FIRST
-                    // ============================
-
-                    //string youtubeVideoArgs =
-                    //    $"--no-playlist " +
-                    //    $"-o \"{System.IO.Path.Combine(downloadDirectory, "%(title)s.%(ext)s")}\" " +
-                    //    $"\"{videoUrl}\"";
-
-                    //bool videoSuccess = RunYtDlp(ytDlpPath, youtubeVideoArgs);
+                    // Video-first logic can be re-enabled when needed; currently we force
+                    // audio fallback for YouTube to keep imports reliable across formats.
                     bool videoSuccess = false;
 
                     if (!videoSuccess)
@@ -324,6 +333,10 @@ namespace Mei_Music
                 MessageBox.Show($"An error occurred during download: {ex.Message}");
             }
         }
+
+        /// <summary>
+        /// Executes yt-dlp and returns false when process launch or command execution fails.
+        /// </summary>
         private bool RunYtDlp(string ytDlpPath, string arguments)
         {
             var startInfo = new ProcessStartInfo
@@ -336,7 +349,14 @@ namespace Mei_Music
                 CreateNoWindow = true
             };
 
-            using (Process process = Process.Start(startInfo))
+            Process? process = Process.Start(startInfo);
+            if (process == null)
+            {
+                Debug.WriteLine("Failed to start yt-dlp process.");
+                return false;
+            }
+
+            using (process)
             {
                 process.WaitForExit(); // Wait for the process to complete
                 if (process.ExitCode != 0)
@@ -395,7 +415,14 @@ namespace Mei_Music
                 CreateNoWindow = true
             };
 
-            using (Process? process = Process.Start(startInfo))
+            Process? process = Process.Start(startInfo);
+            if (process == null)
+            {
+                MessageBox.Show("Failed to start FFmpeg for media merge.");
+                return;
+            }
+
+            using (process)
             {
                 string error = process.StandardError.ReadToEnd();
                 process.WaitForExit();
@@ -406,7 +433,11 @@ namespace Mei_Music
                 }
             }
         }
-        private string ConvertM4aToAac(string audioPath)
+
+        /// <summary>
+        /// Converts .m4a to .aac so FFmpeg can safely mux with downloaded video.
+        /// </summary>
+        private string? ConvertM4aToAac(string audioPath)
         {
             try
             {
@@ -427,7 +458,14 @@ namespace Mei_Music
                     CreateNoWindow = true
                 };
 
-                using (Process? process = Process.Start(startInfo))
+                Process? process = Process.Start(startInfo);
+                if (process == null)
+                {
+                    MessageBox.Show("Failed to start FFmpeg for AAC conversion.");
+                    return null;
+                }
+
+                using (process)
                 {
                     string error = process.StandardError.ReadToEnd();
                     process.WaitForExit();
@@ -457,6 +495,10 @@ namespace Mei_Music
                 return null;
             }
         }
+
+        /// <summary>
+        /// Extracts high-quality audio from a downloaded video into the playlist directory.
+        /// </summary>
         private string ConvertVideoToAudio(string videoFilePath) //perform conversion from video to audio
         {
             try

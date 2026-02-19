@@ -10,11 +10,12 @@ using AudioSwitcher.AudioApi.CoreAudio;
 using Mei_Music.Properties;
 using System.Windows.Media.Imaging;
 using System.Windows.Controls.Primitives;
-using Newtonsoft.Json;
+using System.Collections;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Collections.ObjectModel;
 using Mei_Music.Models;
+using Mei_Music.Services;
 
 
 
@@ -27,8 +28,10 @@ namespace Mei_Music
         private bool isDragging = false;
         private Slider? currentSlider;   
         private MediaPlayer mediaPlayer = new MediaPlayer();
-        private DispatcherTimer timer;
+        private readonly DispatcherTimer timer = new DispatcherTimer();
         private CoreAudioDevice? defaultPlaybackDevice;
+        private readonly FileService fileService = new FileService();
+        private readonly PlaylistSortService playlistSortService = new PlaylistSortService();
 
         private Song? currentSong;
         public Song? CurrentSong
@@ -45,8 +48,11 @@ namespace Mei_Music
             }
         }
         public ObservableCollection<Song> Songs { get; set; } = new ObservableCollection<Song>();
+        public ObservableCollection<Song> LikedSongs { get; } = new ObservableCollection<Song>();
         public event PropertyChangedEventHandler? PropertyChanged;
         private string songDataFilePath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Mei Music", "songData.json");
+        /// <summary>List used for Prev/Next and auto-next; set when user starts playing from the list.</summary>
+        private IList? _playbackList;
 
         public MainWindow()
         {
@@ -57,7 +63,7 @@ namespace Mei_Music
             Directory.CreateDirectory(audioDirectory);
 
             LoadSongData();
-            UploadedSongList.ItemsSource = Songs;
+            ApplyAllSongsView();
             RefreshSongsInUI();
             LoadSongIndex();
 
@@ -72,12 +78,114 @@ namespace Mei_Music
             }
 
             InitializeMediaPlayer();
+            UpdatePlaybackButtonIcon();
             this.PreviewMouseDown += OnMainWindowPreviewMouseDown; //tracks Position of mouse
         }
 
+        /// <summary>
+        /// Binds the right panel to the complete song collection.
+        /// This is the source used when the sidebar "All" option is selected.
+        /// Skip Refresh() when switching source so tab change is instant; Refresh only when re-applying same source.
+        /// </summary>
+        private void ApplyAllSongsView()
+        {
+            if (UploadedSongList == null)
+            {
+                return;
+            }
+
+            if (!ReferenceEquals(UploadedSongList.ItemsSource, Songs))
+            {
+                UploadedSongList.ItemsSource = Songs;
+            }
+            else
+            {
+                UploadedSongList.Items.Refresh();
+            }
+            SyncSelectionToCurrentSong();
+        }
+
+        /// <summary>
+        /// Returns the list currently bound to the song list (Songs or LikedSongs), or null.
+        /// </summary>
+        private static IList? GetCurrentSongList(ItemsControl listBox)
+        {
+            return listBox?.ItemsSource as IList;
+        }
+
+        /// <summary>
+        /// Finds the index of the given song in the list by reference or by Name, or -1 if not found.
+        /// </summary>
+        private static int IndexOfSongInList(IList list, Song? song)
+        {
+            if (list == null || song == null) return -1;
+            for (int i = 0; i < list.Count; i++)
+            {
+                if (list[i] is Song s && (ReferenceEquals(s, song) || s.Name == song.Name))
+                    return i;
+            }
+            return -1;
+        }
+
+        /// <summary>
+        /// After changing the list (All/Liked) or after Prev/Next, sync selection to the currently playing song.
+        /// If CurrentSong is in the visible list, select it; otherwise clear selection so no row is highlighted.
+        /// Does not restart playback.
+        /// </summary>
+        private void SyncSelectionToCurrentSong()
+        {
+            if (UploadedSongList == null) return;
+            var list = GetCurrentSongList(UploadedSongList);
+            if (list == null || list.Count == 0) return;
+            if (CurrentSong == null)
+            {
+                UploadedSongList.SelectedIndex = -1;
+                return;
+            }
+            int index = IndexOfSongInList(list, CurrentSong);
+            UploadedSongList.SelectedIndex = index >= 0 ? index : -1;
+        }
+
+        /// <summary>
+        /// Binds the right panel to user-liked songs.
+        /// Skip Refresh() when switching source so tab change is instant; Refresh only when re-applying same source.
+        /// </summary>
+        private void ApplyLikedSongsView()
+        {
+            if (UploadedSongList == null)
+            {
+                return;
+            }
+
+            if (!ReferenceEquals(UploadedSongList.ItemsSource, LikedSongs))
+            {
+                UploadedSongList.ItemsSource = LikedSongs;
+            }
+            else
+            {
+                UploadedSongList.Items.Refresh();
+            }
+            SyncSelectionToCurrentSong();
+        }
+
+        private void AllSongsButton_Checked(object sender, RoutedEventArgs e)
+        {
+            // Keep the right-side list in sync with the selected sidebar scope.
+            ApplyAllSongsView();
+        }
+
+        private void LikedSongsButton_Checked(object sender, RoutedEventArgs e)
+        {
+            // This view is scaffolded now; like/unlike wiring will populate it later.
+            ApplyLikedSongsView();
+        }
+
+        /// <summary>
+        /// Wires media/timer events and syncs the volume slider to the current
+        /// default playback device so app controls match system state.
+        /// </summary>
         private void InitializeMediaPlayer()
         {
-            timer = new DispatcherTimer();
             timer.Interval = TimeSpan.FromSeconds(1);
             timer.Tick += Timer_Tick;
             timer.Start();
@@ -95,6 +203,24 @@ namespace Mei_Music
         protected void OnPropertyChanged(string propertyName)
         {
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+        }
+
+        /// <summary>
+        /// Updates the transport icon to reflect current playback state.
+        /// In this project UI: pause icon = idle/paused, play icon = currently playing.
+        /// </summary>
+        private void UpdatePlaybackButtonIcon()
+        {
+            if (StopSongButton.Content is not Image playbackIcon)
+            {
+                return;
+            }
+
+            string iconPath = isPlaying
+                ? "/Resources/Images/play_button.png"
+                : "/Resources/Images/pause_button.png";
+
+            playbackIcon.Source = new BitmapImage(new Uri(iconPath, UriKind.Relative));
         }
 
         //------------------------- Add Audio Implementation -------------------------------
@@ -196,6 +322,11 @@ namespace Mei_Music
                 throw;
             }
         }
+
+        /// <summary>
+        /// Adds a track entry to the playlist UI and handles name collisions by
+        /// prompting the user to replace, rename, or cancel.
+        /// </summary>
         internal void AddFileToUI(string filePath)
         {
             string fileNameWithoutExtension = System.IO.Path.GetFileNameWithoutExtension(filePath); //get file name
@@ -210,6 +341,7 @@ namespace Mei_Music
                 dialog.Owner = this;
                 if (dialog.ShowDialog() == true)
                 {
+                    // Keep playlist metadata aligned with the duplicate action selected by the user.
                     switch (dialog.SelectedAction)
                     {
                         case DuplicateFileDialog.DuplicateFileAction.Replace:
@@ -285,48 +417,62 @@ namespace Mei_Music
 
 
         //-------------------------  Song Functionality Implementation ---------------------
+        /// <summary>
+        /// Loads and plays the given song. Does not set _playbackList or call SaveSongIndex.
+        /// Returns true if playback started, false if file not found.
+        /// </summary>
+        private bool PlaySong(Song song)
+        {
+            CurrentSong = song;
+            if (CurrentSong != null)
+            {
+                mediaPlayer.Volume = CurrentSong.Volume;
+                UpdateSongVolumeSlider(CurrentSong.Volume * 100);
+            }
+            string? fileName = song.Name;
+            string audioDirectory = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Mei Music", "playlist");
+            string mp3FilePath = System.IO.Path.Combine(audioDirectory, fileName + ".mp3");
+            string wavFilePath = System.IO.Path.Combine(audioDirectory, fileName + ".wav");
+            string? audioFilePath = File.Exists(mp3FilePath) ? mp3FilePath : (File.Exists(wavFilePath) ? wavFilePath : null);
+            if (audioFilePath == null)
+            {
+                isPlaying = false;
+                UpdatePlaybackButtonIcon();
+                MessageBox.Show("The selected file could not be found.");
+                return false;
+            }
+            mediaPlayer.Stop();
+            mediaPlayer.Open(new Uri(audioFilePath));
+            mediaPlayer.Volume = song.Volume / 100.0;
+            mediaPlayer.Play();
+            isPlaying = true;
+            UpdatePlaybackButtonIcon();
+            return true;
+        }
+
+        /// <summary>
+        /// Resolves the selected song to an existing local file, updates player state,
+        /// and starts playback while restoring the per-song volume.
+        /// </summary>
         private void PlaySelectedSong(object sender, SelectionChangedEventArgs? e)
         {
-            //click to play a song functionality
-            if (UploadedSongList.SelectedItem != null)
-            {
-                var selectedSong = UploadedSongList.SelectedItem as Song;
-                CurrentSong = selectedSong;
+            if (UploadedSongList.SelectedItem is not Song selectedSong)
+                return;
 
+            // Sync-only selection (e.g. after tab switch): same song already playing — do not restart.
+            if ((ReferenceEquals(selectedSong, CurrentSong) || selectedSong.Name == CurrentSong?.Name) && mediaPlayer.Source != null)
+            {
                 if (CurrentSong != null)
                 {
-                    mediaPlayer.Volume = CurrentSong.Volume;
-                    UpdateSongVolumeSlider(CurrentSong.Volume * 100);  // Set slider based on saved volume
+                    mediaPlayer.Volume = CurrentSong.Volume / 100.0;
+                    UpdateSongVolumeSlider(CurrentSong.Volume * 100);
                 }
-
-                string? selectedFileName = selectedSong?.Name;
-                string audioDirectory = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Mei Music", "playlist");
-                string mp3FilePath = System.IO.Path.Combine(audioDirectory, selectedFileName + ".mp3");
-                string wavFilePath = System.IO.Path.Combine(audioDirectory, selectedFileName + ".wav");
-
-                string? audioFilePath = null;
-
-                // Check if the mp3 or wav file exists
-                if (File.Exists(mp3FilePath))
-                    audioFilePath = mp3FilePath;
-                else if (File.Exists(wavFilePath))
-                    audioFilePath = wavFilePath;
-
-                if (audioFilePath != null)
-                {
-                    mediaPlayer.Stop();
-                    mediaPlayer.Open(new Uri(audioFilePath));
-                    mediaPlayer.Volume = selectedSong.Volume / 100.0;
-
-                    mediaPlayer.Play();
-                    isPlaying = true;
-                    SaveSongIndex();
-                }
-                else
-                {
-                    MessageBox.Show("The selected file could not be found.");
-                }
+                return;
             }
+
+            _playbackList = GetCurrentSongList(UploadedSongList);
+            if (PlaySong(selectedSong))
+                SaveSongIndex();
         }
         private T? FindVisualChild<T>(DependencyObject parent, string name) where T : FrameworkElement
         {
@@ -346,53 +492,56 @@ namespace Mei_Music
         }
         private void PreviousSongClicked(object sender, RoutedEventArgs e)
         {
-            int current_index = UploadedSongList.SelectedIndex;
-            int previous_index = current_index - 1;
-            if(previous_index < 0)
-            {
-                previous_index = Songs.Count - 1;
-            }
-            UploadedSongList.SelectedIndex = previous_index;
-            SaveSongIndex();
+            var list = _playbackList ?? GetCurrentSongList(UploadedSongList) ?? Songs;
+            if (list == null || list.Count == 0) return;
+            int currentIndex = IndexOfSongInList(list, CurrentSong);
+            if (currentIndex < 0) currentIndex = 0;
+            int prevIndex = (currentIndex - 1 + list.Count) % list.Count;
+            if (list[prevIndex] is not Song prevSong) return;
+            PlaySong(prevSong);
+            SyncSelectionToCurrentSong();
+            if (ReferenceEquals(GetCurrentSongList(UploadedSongList), _playbackList))
+                SaveSongIndex();
         }
         private void StopSongClicked(object sender, RoutedEventArgs e)
         {
-            if (UploadedSongList.SelectedItem == null)
-            {
-                MessageBox.Show("Please select a song to play.");
-                return;
-            }
-
             if (isPlaying)
             {
-                // If currently playing, pause the media
                 mediaPlayer.Pause();
                 isPlaying = false;
-                ((Image)StopSongButton.Content).Source = new BitmapImage(new Uri("Resources/Images/play_button.png", UriKind.Relative));
+                UpdatePlaybackButtonIcon();
             }
             else
             {
-                // If currently paused or stopped, play the media
-                if (mediaPlayer.Source == null)
+                if (mediaPlayer.Source != null)
                 {
-                    // Load and play the selected song if it hasn't been loaded yet
-                    PlaySelectedSong(this, null);
+                    mediaPlayer.Play();
+                    isPlaying = true;
+                    UpdatePlaybackButtonIcon();
                 }
                 else
                 {
-                    mediaPlayer.Play(); // Resume playing the loaded song
+                    if (UploadedSongList.SelectedItem == null)
+                    {
+                        MessageBox.Show("Please select a song to play.");
+                        return;
+                    }
+                    PlaySelectedSong(this, null);
                 }
-
-                isPlaying = true;
-                ((Image)StopSongButton.Content).Source = new BitmapImage(new Uri("Resources/Images/pause_button.png", UriKind.Relative));
             }
         }
         private void NextSongClicked(object sender, RoutedEventArgs e)
         {
-            int current_index = UploadedSongList.SelectedIndex;
-            int next_index = (current_index + 1) % Songs.Count;
-            UploadedSongList.SelectedIndex = next_index;
-            SaveSongIndex();
+            var list = _playbackList ?? GetCurrentSongList(UploadedSongList) ?? Songs;
+            if (list == null || list.Count == 0) return;
+            int currentIndex = IndexOfSongInList(list, CurrentSong);
+            if (currentIndex < 0) currentIndex = 0;
+            int nextIndex = (currentIndex + 1) % list.Count;
+            if (list[nextIndex] is not Song nextSong) return;
+            PlaySong(nextSong);
+            SyncSelectionToCurrentSong();
+            if (ReferenceEquals(GetCurrentSongList(UploadedSongList), _playbackList))
+                SaveSongIndex();
         }
         private void MediaPlayer_MediaOpened(object? sender, EventArgs e)
         {
@@ -406,12 +555,16 @@ namespace Mei_Music
         }
         private void MediaPlayer_MediaEnded(object? sender, EventArgs e)
         {
-            if (Songs.Count == 0)
-                return;
-            int current_index = UploadedSongList.SelectedIndex;
-            int next_index = (current_index + 1) % Songs.Count;
-            UploadedSongList.SelectedIndex = next_index;
-            PlaySelectedSong(this, null);
+            var list = _playbackList ?? GetCurrentSongList(UploadedSongList) ?? Songs;
+            if (list == null || list.Count == 0) return;
+            int currentIndex = IndexOfSongInList(list, CurrentSong);
+            if (currentIndex < 0) currentIndex = 0;
+            int nextIndex = (currentIndex + 1) % list.Count;
+            if (list[nextIndex] is not Song nextSong) return;
+            PlaySong(nextSong);
+            SyncSelectionToCurrentSong();
+            if (ReferenceEquals(GetCurrentSongList(UploadedSongList), _playbackList))
+                SaveSongIndex();
         }
         private void Timer_Tick(object? sender, EventArgs e)
         {
@@ -537,6 +690,34 @@ namespace Mei_Music
                 MessageBox.Show("File name not found in the Tag property.");
             }
         }
+
+        /// <summary>
+        /// Toggles the song's liked state, updates LikedSongs, and persists to disk.
+        /// Same Song instance is kept in Songs and LikedSongs so UI stays in sync.
+        /// </summary>
+        private void ToggleLike_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is not Button likeButton || likeButton.Tag is not Song song)
+            {
+                return;
+            }
+
+            song.IsLiked = !song.IsLiked;
+            if (song.IsLiked)
+            {
+                if (!LikedSongs.Contains(song))
+                {
+                    LikedSongs.Add(song);
+                }
+            }
+            else
+            {
+                LikedSongs.Remove(song);
+            }
+
+            SaveSongData(Songs.ToList());
+        }
+
         private void SaveSongIndex()
         {
             Properties.Settings.Default.LastSelectedIndex = UploadedSongList.SelectedIndex;
@@ -554,6 +735,7 @@ namespace Mei_Music
 
             UploadedSongList.SelectionChanged += PlaySelectedSong;
             isPlaying = false;
+            UpdatePlaybackButtonIcon();
         }
 
         //--------------------------- Slider And Volume ------------------------------------
@@ -650,7 +832,9 @@ namespace Mei_Music
                         song.Volume = newVolume;
 
                         // Apply to mediaPlayer if this song is playing
-                        if (mediaPlayer.Source?.OriginalString.Contains(song.Name) == true)
+                        string? songName = song.Name;
+                        if (!string.IsNullOrEmpty(songName) &&
+                            mediaPlayer.Source?.OriginalString.Contains(songName) == true)
                         {
                             mediaPlayer.Volume = newVolume / 100.0;
                         }
@@ -670,34 +854,13 @@ namespace Mei_Music
         //------------------------- Sorting Playlist Implementation ------------------------
         private void SortAlphabetically_Click(object sender, RoutedEventArgs e)
         {
-            var sortedItems = Songs
-                             .OfType<Song>()
-                             .OrderBy(song => song.Name)
-                             .ToList();
-
+            var sortedItems = playlistSortService.SortAlphabetically(Songs);
             RefreshPlaylist(sortedItems);
         }
         private void SortByModification_Click(object sender, RoutedEventArgs e)
         {
             string outputDirectory = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Mei Music", "playlist");
-
-            var sortedItems = Songs
-                             .OfType<Song>()
-                             .OrderByDescending(item =>
-                             {
-                                 // Check for .mp3 and .wav files
-                                 string mp3Path = System.IO.Path.Combine(outputDirectory, item.Name + ".mp3");
-                                 string wavPath = System.IO.Path.Combine(outputDirectory, item.Name + ".wav");
-
-                                 // Get the last modification time of the available file
-                                 DateTime lastWriteTime = File.Exists(mp3Path) ? File.GetLastWriteTime(mp3Path) :
-                                                           File.Exists(wavPath) ? File.GetLastWriteTime(wavPath) :
-                                                           DateTime.MinValue;
-
-                                 return lastWriteTime;
-                             })
-                             .ToList();
-
+            var sortedItems = playlistSortService.SortByModificationDate(Songs, outputDirectory);
             RefreshPlaylist(sortedItems);
         }
         private void RefreshPlaylist(List<Song> sortedItems)
@@ -713,6 +876,12 @@ namespace Mei_Music
             }
             UpdateSongData();
         }
+
+        /// <summary>
+        /// Reconciles playlist UI data with files in the playlist folder by cleaning
+        /// invalid files, resolving duplicate formats, removing stale entries, and
+        /// adding newly discovered songs.
+        /// </summary>
         private void RefreshSongsInUI()
         {
             // Step 1: Check for any non audio file. Delete them
@@ -727,6 +896,7 @@ namespace Mei_Music
                     nonAudioFilesFound = true;
                     try
                     {
+                        // Send to Recycle Bin instead of hard delete to keep recovery possible.
                         Microsoft.VisualBasic.FileIO.FileSystem.DeleteFile(
                             filePath,
                             Microsoft.VisualBasic.FileIO.UIOption.OnlyErrorDialogs,
@@ -854,9 +1024,7 @@ namespace Mei_Music
         {
             try
             {
-                Directory.CreateDirectory(Path.GetDirectoryName(songDataFilePath));
-                string json = JsonConvert.SerializeObject(songs, Formatting.Indented);
-                File.WriteAllText(songDataFilePath, json);
+                fileService.SaveSongs(songDataFilePath, songs);
             }
             catch (Exception ex)
             {
@@ -867,26 +1035,20 @@ namespace Mei_Music
         {
             try
             {
-                if (File.Exists(songDataFilePath))
+                var loadedSongs = fileService.LoadSongs(songDataFilePath);
+                Songs.Clear();
+                foreach (var loadedSong in loadedSongs)
                 {
-                    string json = File.ReadAllText(songDataFilePath);
-                    var loadedSongs = JsonConvert.DeserializeObject<List<Song>>(json) ?? new List<Song>();
+                    Songs.Add(loadedSong);
+                }
 
-                    // Clear the Songs collection
-                    Songs.Clear();
-
-                    foreach (var loadedSong in loadedSongs)
+                // Keep LikedSongs in sync with Songs that have IsLiked set (e.g. after load or refresh).
+                LikedSongs.Clear();
+                foreach (var song in Songs)
+                {
+                    if (song.IsLiked)
                     {
-                        // Create a new Song object and set its properties
-                        var song = new Song
-                        {
-                            Index = loadedSong.Index,
-                            Name = loadedSong.Name,
-                            Volume = (loadedSong.Volume > 100) ? 100 : (loadedSong.Volume < 0 ? 50 : loadedSong.Volume) // Adjust volume based on conditions
-                        };
-
-                        // Add the newly created Song object to the Songs collection
-                        Songs.Add(song);
+                        LikedSongs.Add(song);
                     }
                 }
             }
@@ -895,6 +1057,12 @@ namespace Mei_Music
                 MessageBox.Show($"Error loading song data: {ex.Message}");
             }
         }
+
+        /// <summary>
+        /// Applies index updates and persists the normalized playlist back to disk.
+        /// Reloading immediately keeps the in-memory collection consistent with
+        /// serialization rules from FileService.
+        /// </summary>
         private void UpdateSongData()
         {
             UpdateSongIndexes();

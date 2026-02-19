@@ -40,28 +40,234 @@
 
         <!-- Main Content Area -->
         <Grid Grid.Row="1">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="195"/>
+                <ColumnDefinition Width="195" MinWidth="195"/>
                 <ColumnDefinition Width="*"/>
             </Grid.ColumnDefinitions>
 
             <!-- Left Panel -->
-            <Border Grid.Column="0" Background="LightGray" Margin="0">
-                <Label Content="Left Panel"
-                       HorizontalAlignment="Center"
-                       VerticalAlignment="Center"
-                       FontSize="16"
-                       FontWeight="Bold"/>
+            <Border Grid.Row="0" Grid.Column="0" Background="#E9EDF2" Margin="0">
+                <Grid Margin="10,12,10,10">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <!-- Primary scope selector: when checked, right panel shows all songs. -->
+                    <RadioButton x:Name="AllSongsButton"
+                                 Grid.Row="0"
+                                 HorizontalAlignment="Stretch"
+                                 Margin="0,0,0,6"
+                                 Content="All"
+                                 IsChecked="True"
+                                 Checked="AllSongsButton_Checked"
+                                 ToolTip="Show all songs"
+                                 Style="{StaticResource SidebarSelectableCardRadioButtonStyle}">
+                        <RadioButton.Tag>
+                            <Rectangle Width="16"
+                                       Height="16"
+                                       Fill="{StaticResource SidebarGlyphBrush}"
+                                       RenderOptions.BitmapScalingMode="Fant"
+                                       SnapsToDevicePixels="True"
+                                       UseLayoutRounding="True">
+                                <Rectangle.OpacityMask>
+                                    <ImageBrush ImageSource="/Resources/Images/music-player.png"
+                                                Stretch="Uniform"
+                                                RenderOptions.BitmapScalingMode="Fant"/>
+                                </Rectangle.OpacityMask>
+                            </Rectangle>
+                        </RadioButton.Tag>
+                    </RadioButton>
+
+                    <!-- Secondary scope selector: reserved for user-liked songs. -->
+                    <RadioButton x:Name="LikedSongsButton"
+                                 Grid.Row="1"
+                                 HorizontalAlignment="Stretch"
+                                 Margin="0,0,0,8"
+                                 Content="Liked"
+                                 Checked="LikedSongsButton_Checked"
+                                 ToolTip="Show liked songs"
+                                 Style="{StaticResource SidebarSelectableCardRadioButtonStyle}">
+                        <RadioButton.Tag>
+                            <Rectangle Width="16"
+                                       Height="16"
+                                       Fill="{StaticResource SidebarGlyphBrush}"
+                                       RenderOptions.BitmapScalingMode="Fant"
+                                       SnapsToDevicePixels="True"
+                                       UseLayoutRounding="True"
+                                       RenderTransformOrigin="0.5,0.5">
+                                <Rectangle.RenderTransform>
+                                    <ScaleTransform ScaleX="0.92" ScaleY="0.92"/>
+                                </Rectangle.RenderTransform>
+                                <Rectangle.OpacityMask>
+                                    <ImageBrush ImageSource="/Resources/Images/heart-filled.png"
+                                                Stretch="Uniform"
+                                                RenderOptions.BitmapScalingMode="Fant"/>
+                                </Rectangle.OpacityMask>
+                            </Rectangle>
+                        </RadioButton.Tag>
+                    </RadioButton>
+
+                    <Grid Grid.Row="2" Margin="0,0,0,2">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+
+                        <ToggleButton x:Name="PlaylistsToggleButton"
+                                      Grid.Column="0"
+                                      HorizontalAlignment="Left"
+                                      Margin="0,0,0,0"
+                                      VerticalAlignment="Center"
+                                      IsChecked="True"
+                                      Background="Transparent"
+                                      BorderBrush="Transparent"
+                                      Foreground="{StaticResource SidebarForegroundBrush}"
+                                      Padding="7,0,0,0"
+                                      Cursor="Hand">
+                            <ToggleButton.Style>
+                                <Style TargetType="ToggleButton">
+                                    <Setter Property="Template">
+                                        <Setter.Value>
+                                            <ControlTemplate TargetType="ToggleButton">
+                                                <Border Background="{TemplateBinding Background}"
+                                                        Padding="{TemplateBinding Padding}">
+                                                    <StackPanel Orientation="Horizontal">
+                                                        <TextBlock Text="Created Playlists"
+                                                                   FontSize="14"
+                                                                   FontWeight="SemiBold"
+                                                                   Foreground="{TemplateBinding Foreground}"
+                                                                   VerticalAlignment="Center"/>
+                                                        <Rectangle x:Name="PlaylistsArrowIcon"
+                                                                   Width="12"
+                                                                   Height="12"
+                                                                   Margin="6,1,0,0"
+                                                                   VerticalAlignment="Center"
+                                                                   Fill="{TemplateBinding Foreground}"
+                                                                   RenderOptions.BitmapScalingMode="Fant"
+                                                                   SnapsToDevicePixels="True">
+                                                            <Rectangle.OpacityMask>
+                                                                <ImageBrush ImageSource="/Resources/Images/arrow-up.png"
+                                                                            Stretch="Uniform"
+                                                                            RenderOptions.BitmapScalingMode="Fant"/>
+                                                            </Rectangle.OpacityMask>
+                                                        </Rectangle>
+                                                    </StackPanel>
+                                                </Border>
+                                                <ControlTemplate.Triggers>
+                                                    <Trigger Property="IsChecked" Value="False">
+                                                        <Setter TargetName="PlaylistsArrowIcon"
+                                                                Property="OpacityMask">
+                                                            <Setter.Value>
+                                                                <ImageBrush ImageSource="/Resources/Images/arrow-down.png"
+                                                                            Stretch="Uniform"
+                                                                            RenderOptions.BitmapScalingMode="Fant"/>
+                                                            </Setter.Value>
+                                                        </Setter>
+                                                    </Trigger>
+                                                </ControlTemplate.Triggers>
+                                            </ControlTemplate>
+                                        </Setter.Value>
+                                    </Setter>
+                                </Style>
+                            </ToggleButton.Style>
+                        </ToggleButton>
+
+                        <!-- Placeholder button: UI is present, logic intentionally not wired yet. -->
+                        <Button x:Name="CreateAlbumButton"
+                                Grid.Column="1"
+                                Width="24"
+                                Height="24"
+                                Margin="8,0,0,0"
+                                ToolTip="Create album (coming soon)"
+                                Background="Transparent"
+                                BorderBrush="Transparent"
+                                Cursor="Hand"
+                                VerticalAlignment="Center">
+                            <Grid>
+                                <Ellipse Fill="#DEE3EA"
+                                         Width="24"
+                                         Height="24"/>
+                                <TextBlock Text="+"
+                                           Foreground="#6B7380"
+                                           FontSize="14"
+                                           FontWeight="Bold"
+                                           HorizontalAlignment="Center"
+                                           VerticalAlignment="Center"/>
+                            </Grid>
+                        </Button>
+                    </Grid>
+
+                    <!-- Album list is intentionally empty until user creates playlists. -->
+                    <ScrollViewer Grid.Row="3" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                        <StackPanel x:Name="PlaylistAlbumsContainer">
+                            <StackPanel.Style>
+                                <Style TargetType="StackPanel">
+                                    <Setter Property="Visibility" Value="Visible"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsChecked, ElementName=PlaylistsToggleButton}" Value="False">
+                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </StackPanel.Style>
+
+                            <!-- Reusable sidebar action card; swap `Content` (label) and `Tag` (icon) per button. -->
+                            <Button x:Name="CreateFirstPlaylistButton"
+                                    HorizontalAlignment="Stretch"
+                                    Margin="0,2,0,0"
+                                    Content="Create"
+                                    ToolTip="Create playlist (coming soon)"
+                                    Style="{StaticResource SidebarActionCardButtonStyle}"/>
+                        </StackPanel>
+                    </ScrollViewer>
+                </Grid>
             </Border>
 
+            <GridSplitter Grid.Row="0"
+                          Grid.Column="0"
+                          Width="18"
+                          HorizontalAlignment="Right"
+                          Margin="0,0,-9,0"
+                          VerticalAlignment="Stretch"
+                          ResizeBehavior="CurrentAndNext"
+                          ResizeDirection="Columns"
+                          ShowsPreview="False"
+                          Cursor="SizeWE"
+                          Background="Transparent"
+                          SnapsToDevicePixels="True"
+                          Panel.ZIndex="10">
+                <GridSplitter.Template>
+                    <ControlTemplate TargetType="GridSplitter">
+                        <Border Background="Transparent"
+                                SnapsToDevicePixels="True">
+                            <Border x:Name="SplitterLine"
+                                    Width="1"
+                                    HorizontalAlignment="Center"
+                                    Background="#B7BFCA"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="SplitterLine" Property="Opacity" Value="0.5"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </GridSplitter.Template>
+            </GridSplitter>
+
             <!-- Main Content on the Right -->
-            <Grid Grid.Column="1" Background="#ebecf0" VerticalAlignment="Stretch">
+            <Grid Grid.Row="0" Grid.Column="1" Background="#ebecf0" VerticalAlignment="Stretch">
                 <Border>
                     <Grid>
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto"/>
                             <RowDefinition Height="*"/>
-                            <RowDefinition Height="48"/>
                         </Grid.RowDefinitions>
 
                         <Grid Grid.Row="0">
@@ -140,7 +346,10 @@
                                 Grid.Row="1"
                                 HorizontalContentAlignment="Stretch" 
                                 VerticalContentAlignment="Stretch"
-                                ScrollViewer.CanContentScroll="False"
+                                ScrollViewer.CanContentScroll="True"
+                                VirtualizingPanel.ScrollUnit="Pixel"
+                                VirtualizingStackPanel.IsVirtualizing="True"
+                                VirtualizingStackPanel.VirtualizationMode="Recycling"
                                 SelectionChanged="PlaySelectedSong"
                                 Style="{StaticResource CustomListBox}"
                                 ItemContainerStyle="{StaticResource SongListStyle}">
@@ -164,6 +373,64 @@
                                         VerticalAlignment="Center" 
                                         Margin="5,0,10,0" 
                                         Grid.Column="1"/>
+
+                                        <!-- Like Button: outline when not liked, filled when liked; no hover circle, tint darkens on hover. -->
+                                        <Button Click="ToggleLike_Click"
+                                                Tag="{Binding}"
+                                                ToolTip="Like"
+                                                Style="{StaticResource LikeButtonStyle}"
+                                                Grid.Column="2"
+                                                Margin="0,0,94,0">
+                                            <Grid Width="16" Height="16" RenderTransformOrigin="0.5,0.5">
+                                                <Grid.RenderTransform>
+                                                    <ScaleTransform ScaleX="0.9" ScaleY="0.9"/>
+                                                </Grid.RenderTransform>
+                                                <Rectangle RenderOptions.BitmapScalingMode="Fant"
+                                                           SnapsToDevicePixels="True">
+                                                    <Rectangle.OpacityMask>
+                                                        <ImageBrush ImageSource="/Resources/Images/heart.png"
+                                                                    Stretch="Uniform"
+                                                                    RenderOptions.BitmapScalingMode="Fant"/>
+                                                    </Rectangle.OpacityMask>
+                                                    <Rectangle.Style>
+                                                        <Style TargetType="Rectangle">
+                                                            <Setter Property="Fill" Value="{StaticResource SidebarGlyphBrush}"/>
+                                                            <Setter Property="Visibility" Value="Visible"/>
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding IsLiked}" Value="True">
+                                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                                </DataTrigger>
+                                                                <DataTrigger Binding="{Binding IsMouseOver, RelativeSource={RelativeSource AncestorType=Button}}" Value="True">
+                                                                    <Setter Property="Fill" Value="{StaticResource SidebarGlyphHoverBrush}"/>
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </Rectangle.Style>
+                                                </Rectangle>
+                                                <Rectangle RenderOptions.BitmapScalingMode="Fant"
+                                                           SnapsToDevicePixels="True">
+                                                    <Rectangle.OpacityMask>
+                                                        <ImageBrush ImageSource="/Resources/Images/heart-filled.png"
+                                                                    Stretch="Uniform"
+                                                                    RenderOptions.BitmapScalingMode="Fant"/>
+                                                    </Rectangle.OpacityMask>
+                                                    <Rectangle.Style>
+                                                        <Style TargetType="Rectangle">
+                                                            <Setter Property="Fill" Value="{StaticResource SidebarGlyphBrush}"/>
+                                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding IsLiked}" Value="True">
+                                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                                </DataTrigger>
+                                                                <DataTrigger Binding="{Binding IsMouseOver, RelativeSource={RelativeSource AncestorType=Button}}" Value="True">
+                                                                    <Setter Property="Fill" Value="{StaticResource SidebarGlyphHoverBrush}"/>
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </Rectangle.Style>
+                                                </Rectangle>
+                                            </Grid>
+                                        </Button>
 
                                         <!-- Rename Button -->
                                         <Button Content="🖊" 
@@ -212,7 +479,7 @@
                 </Border>
             </Grid>
 
-            <Grid Grid.Row="2" Grid.ColumnSpan="2" Height="48"  VerticalAlignment="Bottom" Background="#F5F5F5">
+            <Grid Grid.Row="1" Grid.ColumnSpan="2" Height="48" Background="#F5F5F5">
                 <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto"/>
@@ -237,7 +504,7 @@
                     <Button Grid.Column="1" Padding="0,0,0,1" FontSize="33" 
                             x:Name="StopSongButton"
                             Click="StopSongClicked"
-                            Margin="5,0,0,0"
+                            Margin="2,0,2,0"
                             RenderOptions.BitmapScalingMode="Fant"
                             HorizontalAlignment="Left" Style="{StaticResource TransportControlButtonStyle}">
                         <Image Source="/Resources/Images/pause_button.png" Width="35" Height="35"/>
@@ -245,7 +512,7 @@
 
                     <!-- Next Song Button-->
                     <Button Grid.Column="2" FontSize="25" 
-                            Margin="-5,0,20,0" HorizontalAlignment="Right"
+                            Margin="-5,0,15,0" HorizontalAlignment="Right"
                             RenderOptions.BitmapScalingMode="Fant"
                             x:Name="NextSongButton"
                             Click="NextSongClicked"
