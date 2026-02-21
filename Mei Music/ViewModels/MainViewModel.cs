@@ -49,6 +49,12 @@ namespace Mei_Music.ViewModels
         [ObservableProperty]
         private bool _isPlaying;
 
+        /// <summary>
+        /// Set to true while the user is dragging or clicking the progress slider.
+        /// Prevents the position timer from overwriting the slider value mid-seek.
+        /// </summary>
+        public bool IsSeeking { get; set; }
+
         [ObservableProperty]
         private double _playProgress;
 
@@ -137,6 +143,10 @@ namespace Mei_Music.ViewModels
 
         private void OnPositionChanged(object? sender, TimeSpan position)
         {
+            // Skip timer updates while the user is dragging/clicking the slider
+            // to prevent the binding from snapping back to the old position.
+            if (IsSeeking) return;
+
             CurrentTimeText = position.ToString(@"mm\:ss");
             PlayProgress = position.TotalSeconds;
         }

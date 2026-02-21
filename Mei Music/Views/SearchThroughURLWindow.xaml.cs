@@ -44,13 +44,34 @@ namespace Mei_Music
         }
 
         /// <summary>
+        /// Resolves an absolute path for a bundled tool and verifies it exists.
+        /// Returns null (after showing a message) when the file is missing.
+        /// </summary>
+        private string? GetToolPath(string relativeToolPath)
+        {
+            string fullPath = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, relativeToolPath);
+            if (!File.Exists(fullPath))
+            {
+                string toolName = System.IO.Path.GetFileName(fullPath);
+                MessageBox.Show(
+                    $"Required tool '{toolName}' was not found at:\n{fullPath}\n\nPlease reinstall the application.",
+                    "Missing Tool",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Error);
+                return null;
+            }
+            return fullPath;
+        }
+
+        /// <summary>
         /// Remuxes a downloaded .webm file into .mp4 without re-encoding streams.
         /// </summary>
         private void ConvertWebMToMp4(string inputWebMPath, string outputMp4Path)
         {
             try
             {
-                string ffmpegPath = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Resources", "ffmpeg", "ffmpeg.exe");
+                string? ffmpegPath = GetToolPath(@"Resources\ffmpeg\ffmpeg.exe");
+                if (ffmpegPath == null) return;
 
                 ProcessStartInfo startInfo = new ProcessStartInfo
                 {
@@ -251,7 +272,8 @@ namespace Mei_Music
         {
             try
             {
-                string ytDlpPath = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Resources", "yt-dlp", "yt-dlp.exe");
+                string? ytDlpPath = GetToolPath(@"Resources\yt-dlp\yt-dlp.exe");
+                if (ytDlpPath == null) return;
 
                 // Sanitize the filename to avoid invalid characters
                 string sanitizedFileName = SanitizeFileName("video"); // Basic name to ensure fallback
@@ -403,7 +425,8 @@ namespace Mei_Music
         }
         private void CombineVideoAndAudio(string videoPath, string audioPath, string outputPath)
         {
-            string ffmpegPath = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Resources", "ffmpeg", "ffmpeg.exe");
+            string? ffmpegPath = GetToolPath(@"Resources\ffmpeg\ffmpeg.exe");
+            if (ffmpegPath == null) return;
 
             ProcessStartInfo startInfo = new ProcessStartInfo
             {
@@ -446,7 +469,8 @@ namespace Mei_Music
                 string outputDirectory = System.IO.Path.GetDirectoryName(audioPath) ?? "";
                 string aacAudioPath = System.IO.Path.Combine(outputDirectory, System.IO.Path.GetFileNameWithoutExtension(audioPath) + "_converted.aac");
 
-                string ffmpegPath = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Resources", "ffmpeg", "ffmpeg.exe");
+                string? ffmpegPath = GetToolPath(@"Resources\ffmpeg\ffmpeg.exe");
+                if (ffmpegPath == null) return null;
 
                 ProcessStartInfo startInfo = new ProcessStartInfo
                 {
@@ -508,7 +532,8 @@ namespace Mei_Music
 
                 string audioFilePath = System.IO.Path.Combine(outputDirectory, System.IO.Path.GetFileNameWithoutExtension(videoFilePath) + ".mp3");
 
-                string ffmpegPath = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Resources", "ffmpeg", "ffmpeg.exe");
+                string? ffmpegPath = GetToolPath(@"Resources\ffmpeg\ffmpeg.exe");
+                if (ffmpegPath == null) throw new InvalidOperationException("ffmpeg.exe is missing.");
 
                 ProcessStartInfo startInfo = new ProcessStartInfo
                 {

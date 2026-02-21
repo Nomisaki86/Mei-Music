@@ -63,9 +63,6 @@ namespace Mei_Music
             LoadSongData();
             LoadCreatedPlaylists();
             ApplyAllSongsView();
-            LoadSongData();
-            LoadCreatedPlaylists();
-            ApplyAllSongsView();
             ViewModel.RefreshSongsInUI();
             LoadSongIndex();
 
@@ -535,6 +532,27 @@ namespace Mei_Music
             SearchThroughURLWindow window = new SearchThroughURLWindow(this);
             window.Show();
         }
+
+        /// <summary>
+        /// Resolves an absolute path for a bundled tool and verifies it exists.
+        /// Returns null (after showing a message) when the file is missing.
+        /// </summary>
+        private string? GetToolPath(string relativeToolPath)
+        {
+            string fullPath = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, relativeToolPath);
+            if (!File.Exists(fullPath))
+            {
+                string toolName = System.IO.Path.GetFileName(fullPath);
+                MessageBox.Show(
+                    $"Required tool '{toolName}' was not found at:\n{fullPath}\n\nPlease reinstall the application.",
+                    "Missing Tool",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Error);
+                return null;
+            }
+            return fullPath;
+        }
+
         internal string ConvertVideoToAudio(string videoFilePath) //perform conversion from video to audio
         {
             try
@@ -544,7 +562,8 @@ namespace Mei_Music
 
                 string audioFilePath = System.IO.Path.Combine(outputDirectory, System.IO.Path.GetFileNameWithoutExtension(videoFilePath) + ".mp3");
 
-                string ffmpegPath = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Resources", "ffmpeg", "ffmpeg.exe");
+                string? ffmpegPath = GetToolPath(@"Resources\ffmpeg\ffmpeg.exe");
+                if (ffmpegPath == null) throw new InvalidOperationException("ffmpeg.exe is missing.");
 
                 ProcessStartInfo startInfo = new ProcessStartInfo
                 {
@@ -656,8 +675,6 @@ namespace Mei_Music
         /// </summary>
         private void PlaySelectedSong(object sender, SelectionChangedEventArgs? e)
         {
-            System.IO.File.AppendAllText("upload_bug_log.txt", "PlaySelectedSong triggered. Stack:\n" + new System.Diagnostics.StackTrace().ToString() + "\n\n");
-
             if (_suppressSelectionChanged)
                 return;
 
@@ -753,7 +770,6 @@ namespace Mei_Music
 
         private void MediaPlayer_MediaEnded(object? sender, EventArgs e)
         {
-            System.IO.File.AppendAllText("upload_bug_log.txt", "MediaEnded triggered. Stack:\n" + new System.Diagnostics.StackTrace().ToString() + "\n\n");
             var list = _playbackList ?? GetCurrentSongList(UploadedSongList) ?? ViewModel.Songs;
             if (list == null || list.Count == 0) return;
             int currentIndex = IndexOfSongInList(list, ViewModel.CurrentSong);
@@ -806,13 +822,15 @@ namespace Mei_Music
         }
         private void SongProgressSlider_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
         {
+            ViewModel.IsSeeking = true;
             Slider_PreviewMouseLeftButtonDown(sender, e);
             SongProgressSlider.CaptureMouse();
         }
         private void SongProgressSlider_PreviewMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
         {
             Slider_PreviewMouseLeftButtonUp(sender, e);
-            ViewModel.Seek(SongProgressSlider.Value); // Seek to the selected position
+            ViewModel.Seek(SongProgressSlider.Value);
+            ViewModel.IsSeeking = false;
             SongProgressSlider.ReleaseMouseCapture();
         }
         private void SongProgressSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
