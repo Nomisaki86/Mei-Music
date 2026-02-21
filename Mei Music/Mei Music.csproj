@@ -12,11 +12,15 @@
   <ItemGroup>
     <None Remove="Resources\Images\arrow-down.png" />
     <None Remove="Resources\Images\arrow-up.png" />
+    <None Remove="Resources\Images\delete.png" />
+    <None Remove="Resources\Images\folder.png" />
     <None Remove="Resources\Images\heart-filled.png" />
     <None Remove="Resources\Images\heart.png" />
     <None Remove="Resources\Images\music-player.png" />
     <None Remove="Resources\Images\next_button.png" />
+    <None Remove="Resources\Images\option.png" />
     <None Remove="Resources\Images\previous_button.png" />
+    <None Remove="Resources\Images\close.png" />
   </ItemGroup>
 
   <ItemGroup>
@@ -25,19 +29,24 @@
 
   <ItemGroup>
     <PackageReference Include="AudioSwitcher.AudioApi.CoreAudio" Version="3.0.3" />
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
   </ItemGroup>
 
   <ItemGroup>
     <Resource Include="Resources\Images\arrow-down.png" />
     <Resource Include="Resources\Images\arrow-up.png" />
+    <Resource Include="Resources\Images\delete.png" />
+    <Resource Include="Resources\Images\folder.png" />
     <Resource Include="Resources\Images\heart-filled.png" />
     <Resource Include="Resources\Images\heart.png" />
     <Resource Include="Resources\Images\music-player.png" />
     <Resource Include="Resources\Images\next_button.png" />
+    <Resource Include="Resources\Images\option.png" />
     <Resource Include="Resources\Images\play_button.png" />
     <Resource Include="Resources\Images\pause_button.png" />
     <Resource Include="Resources\Images\previous_button.png" />
+    <Resource Include="Resources\Images\close.png" />
   </ItemGroup>
 
   <ItemGroup>

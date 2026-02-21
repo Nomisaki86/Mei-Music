@@ -6,6 +6,7 @@ using Microsoft.Win32;
 using System.Diagnostics;
 using System.IO;
 using System.Windows.Threading;
+using AudioSwitcher.AudioApi;
 using AudioSwitcher.AudioApi.CoreAudio;
 using Mei_Music.Properties;
 using System.Windows.Media.Imaging;
@@ -16,76 +17,217 @@ using System.ComponentModel;
 using System.Collections.ObjectModel;
 using Mei_Music.Models;
 using Mei_Music.Services;
-
-
-
+using Mei_Music.ViewModels;
 
 namespace Mei_Music
 {
-    public partial class MainWindow : Window, INotifyPropertyChanged
+    public partial class MainWindow : Window
     {
-        private bool isPlaying = false;
         private bool isDragging = false;
-        private Slider? currentSlider;   
-        private MediaPlayer mediaPlayer = new MediaPlayer();
-        private readonly DispatcherTimer timer = new DispatcherTimer();
+        private Slider? currentSlider;
         private CoreAudioDevice? defaultPlaybackDevice;
         private readonly FileService fileService = new FileService();
         private readonly PlaylistSortService playlistSortService = new PlaylistSortService();
 
-        private Song? currentSong;
-        public Song? CurrentSong
-        {
-            get => currentSong;
-            set
-            {
-                currentSong = value;
-                if (currentSong != null)
-                {
-                    mediaPlayer.Volume = currentSong.Volume;
-                }
-                OnPropertyChanged(nameof(CurrentSong));
-            }
-        }
-        public ObservableCollection<Song> Songs { get; set; } = new ObservableCollection<Song>();
-        public ObservableCollection<Song> LikedSongs { get; } = new ObservableCollection<Song>();
-        public event PropertyChangedEventHandler? PropertyChanged;
-        private string songDataFilePath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Mei Music", "songData.json");
+        private string songDataFilePath = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Mei Music", "songData.json");
+        private static readonly string PlaylistsFilePath = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Mei Music", "playlists.json");
+        private static readonly string PlaylistIconsDirectory = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Mei Music", "playlist-icons");
+
+        public MainViewModel ViewModel => (MainViewModel)this.DataContext;
+
         /// <summary>List used for Prev/Next and auto-next; set when user starts playing from the list.</summary>
         private IList? _playbackList;
+        /// <summary>Saved vertical scroll offset for the All (Songs) view when switching tabs.</summary>
+        private double _allViewScrollOffset;
+        /// <summary>Saved vertical scroll offset for the Liked view when switching tabs.</summary>
+        private double _likedViewScrollOffset;
+        /// <summary>When true, SelectionChanged is being caused by a programmatic tab switch and should not start playback.</summary>
+        private bool _suppressSelectionChanged;
+        /// <summary>The playlist currently shown in the right panel, or null for All/Liked views.</summary>
+        private CreatedPlaylist? _activePlaylist;
+        /// <summary>Saved vertical scroll offset for the last viewed playlist.</summary>
+        private double _playlistViewScrollOffset;
+
+        private bool _isDraggingCard;
+        private Point _dragStartMousePos;
+        private Point _dragStartTransformPos;
 
         public MainWindow()
         {
 
             InitializeComponent();
+            var mainViewModel = new ViewModels.MainViewModel();
+            this.DataContext = mainViewModel;
 
             string audioDirectory = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Mei Music", "playlist");
             Directory.CreateDirectory(audioDirectory);
+            Directory.CreateDirectory(PlaylistIconsDirectory);
 
             LoadSongData();
+            LoadCreatedPlaylists();
             ApplyAllSongsView();
-            RefreshSongsInUI();
+            LoadSongData();
+            LoadCreatedPlaylists();
+            ApplyAllSongsView();
+            ViewModel.RefreshSongsInUI();
             LoadSongIndex();
 
             UpdateSongIndexes();
 
 
 
-            if (UploadedSongList.SelectedIndex >= 0 && UploadedSongList.SelectedIndex < Songs.Count)
+            if (UploadedSongList.SelectedIndex >= 0 && UploadedSongList.SelectedIndex < ViewModel.Songs.Count)
             {
-                CurrentSong = Songs[UploadedSongList.SelectedIndex];
-                mediaPlayer.Volume = CurrentSong.Volume / 100.0;
+                ViewModel.CurrentSong = ViewModel.Songs[UploadedSongList.SelectedIndex];
+                ViewModel.Volume = ViewModel.CurrentSong.Volume;
             }
 
             InitializeMediaPlayer();
-            UpdatePlaybackButtonIcon();
             this.PreviewMouseDown += OnMainWindowPreviewMouseDown; //tracks Position of mouse
+            CreatePlaylistCard.DragMoveDelta += CreatePlaylistCard_DragMoveDelta;
+            ViewModel.CreatedPlaylists.CollectionChanged += (_, _) => UpdatePlaylistSidebarVisibility();
+            UpdatePlaylistSidebarVisibility();
+        }
+
+        /// <summary>Loads created playlists from disk into CreatedPlaylists.</summary>
+        private void LoadCreatedPlaylists()
+        {
+            var loaded = fileService.LoadPlaylists(PlaylistsFilePath);
+            ViewModel.CreatedPlaylists.Clear();
+            foreach (var p in loaded)
+                ViewModel.CreatedPlaylists.Add(p);
+        }
+
+        /// <summary>Persists CreatedPlaylists to disk.</summary>
+        private void SaveCreatedPlaylists()
+        {
+            fileService.SavePlaylists(PlaylistsFilePath, ViewModel.CreatedPlaylists);
+        }
+
+        /// <summary>Shows the in-app create-playlist overlay; card raises CreateClicked or CloseRequested.</summary>
+        private void OpenCreatePlaylistDialog(object sender, RoutedEventArgs e)
+        {
+            CreatePlaylistCard.Reset();
+            CreatePlaylistCardTransform.X = 0;
+            CreatePlaylistCardTransform.Y = 0;
+            CreatePlaylistOverlay.Visibility = Visibility.Visible;
+        }
+
+        private void CreatePlaylistCard_DragMoveDelta(object? sender, DragMoveDeltaEventArgs e)
+        {
+            // 1. Calculate the new potential position
+            double newX = CreatePlaylistCardTransform.X + e.HorizontalChange;
+            double newY = CreatePlaylistCardTransform.Y + e.VerticalChange;
+
+            // 2. Determine Maximum allowed translate distance (Half the leftover space in the Overlay)
+            double maxX = Math.Max(0, (CreatePlaylistOverlay.ActualWidth - CreatePlaylistCardHost.ActualWidth) / 2);
+            double maxY = Math.Max(0, (CreatePlaylistOverlay.ActualHeight - CreatePlaylistCardHost.ActualHeight) / 2);
+
+            // 3. Clamp the values so it cannot exceed the boundaries
+            CreatePlaylistCardTransform.X = Math.Clamp(newX, -maxX, maxX);
+            CreatePlaylistCardTransform.Y = Math.Clamp(newY, -maxY, maxY);
+        }
+
+        private void CreatePlaylistCard_CreateClicked(object? sender, CreatePlaylistClickedEventArgs e)
+        {
+            var playlist = new CreatedPlaylist { Title = e.Title };
+
+            if (!string.IsNullOrEmpty(e.SelectedImageFilePath) && File.Exists(e.SelectedImageFilePath))
+            {
+                string ext = Path.GetExtension(e.SelectedImageFilePath);
+                if (string.IsNullOrEmpty(ext)) ext = ".png";
+                string destPath = Path.Combine(PlaylistIconsDirectory, playlist.Id + ext);
+                try
+                {
+                    File.Copy(e.SelectedImageFilePath, destPath);
+                    playlist.IconPath = destPath;
+                }
+                catch
+                {
+                    // Leave IconPath null if copy fails
+                }
+            }
+
+            ViewModel.CreatePlaylist(playlist);
+            CreatePlaylistOverlay.Visibility = Visibility.Collapsed;
+        }
+
+        // Tracks which playlist the popup is targeting
+        private CreatedPlaylist? _contextMenuTargetPlaylist;
+
+        private void PlaylistItem_RightClick(object sender, MouseButtonEventArgs e)
+        {
+            if (sender is not RadioButton btn) return;
+            if (btn.DataContext is not CreatedPlaylist playlist) return;
+
+            _contextMenuTargetPlaylist = playlist;
+
+            // Position the card in the overlay coordinate space
+            Point clickPos = e.GetPosition(PlaylistContextMenuOverlay);
+            double cardWidth = PlaylistContextMenuCard.ActualWidth > 0 ? PlaylistContextMenuCard.ActualWidth : 180;
+            double cardHeight = PlaylistContextMenuCard.ActualHeight > 0 ? PlaylistContextMenuCard.ActualHeight : 60;
+
+            // Open top-right of cursor
+            double left = clickPos.X + 4;
+            double top = clickPos.Y - cardHeight - 4;
+
+            // Clamp so it doesn't leave the window
+            left = Math.Min(left, ActualWidth - cardWidth - 8);
+            top = Math.Max(top, 8);
+
+            PlaylistContextMenuCard.Margin = new Thickness(left, top, 0, 0);
+            PlaylistContextMenuOverlay.Visibility = Visibility.Visible;
+
+            e.Handled = true;
+        }
+
+        private void PlaylistContextMenuDismiss_Click(object sender, MouseButtonEventArgs e)
+        {
+            PlaylistContextMenuOverlay.Visibility = Visibility.Collapsed;
+            _contextMenuTargetPlaylist = null;
+        }
+
+        private void ContextMenuDeletePlaylist_Click(object? sender, EventArgs e)
+        {
+            PlaylistContextMenuOverlay.Visibility = Visibility.Collapsed;
+
+            if (_contextMenuTargetPlaylist == null) return;
+            var playlist = _contextMenuTargetPlaylist;
+            _contextMenuTargetPlaylist = null;
+
+            ViewModel.DeletePlaylist(playlist);
+
+            if (ViewModel.CreatedPlaylists.Count == 0 && LikedSongsButton != null)
+            {
+                LikedSongsButton.IsChecked = true;
+            }
+        }
+
+        private void CreatePlaylistCard_CloseRequested(object? sender, EventArgs e)
+        {
+            CreatePlaylistOverlay.Visibility = Visibility.Collapsed;
+        }
+
+        private void CreatePlaylistOverlayDim_MouseDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
+        {
+            CreatePlaylistOverlay.Visibility = Visibility.Collapsed;
+        }
+
+        /// <summary>Updates visibility of the "Create" card vs playlist list in the sidebar based on CreatedPlaylists count.</summary>
+        private void UpdatePlaylistSidebarVisibility()
+        {
+            if (CreateFirstPlaylistPanel == null || PlaylistListPanel == null)
+                return;
+            bool hasPlaylists = ViewModel.CreatedPlaylists.Count > 0;
+            CreateFirstPlaylistPanel.Visibility = hasPlaylists ? Visibility.Collapsed : Visibility.Visible;
+            PlaylistListPanel.Visibility = hasPlaylists ? Visibility.Visible : Visibility.Collapsed;
         }
 
         /// <summary>
         /// Binds the right panel to the complete song collection.
         /// This is the source used when the sidebar "All" option is selected.
         /// Skip Refresh() when switching source so tab change is instant; Refresh only when re-applying same source.
+        /// Saves/restores scroll position per tab so returning to All keeps the previous scroll.
         /// </summary>
         private void ApplyAllSongsView()
         {
@@ -94,15 +236,38 @@ namespace Mei_Music
                 return;
             }
 
-            if (!ReferenceEquals(UploadedSongList.ItemsSource, Songs))
+            SaveCurrentViewScrollOffset();
+
+            _activePlaylist = null;
+            if (PlaylistHeaderLabel != null)
+                PlaylistHeaderLabel.Content = "All";
+
+            bool switchedToSongs = !ReferenceEquals(UploadedSongList.ItemsSource, ViewModel.Songs);
+            if (switchedToSongs)
             {
-                UploadedSongList.ItemsSource = Songs;
+                UploadedSongList.ItemsSource = ViewModel.Songs;
             }
             else
             {
                 UploadedSongList.Items.Refresh();
             }
+            _suppressSelectionChanged = true;
             SyncSelectionToCurrentSong();
+            _suppressSelectionChanged = false;
+
+            if (switchedToSongs)
+            {
+                double offsetToRestore = _allViewScrollOffset;
+                Dispatcher.BeginInvoke(() =>
+                {
+                    var scrollViewer = FindScrollViewer(UploadedSongList);
+                    if (scrollViewer != null)
+                    {
+                        double target = Math.Min(offsetToRestore, Math.Max(0, scrollViewer.ScrollableHeight));
+                        scrollViewer.ScrollToVerticalOffset(target);
+                    }
+                }, DispatcherPriority.Loaded);
+            }
         }
 
         /// <summary>
@@ -137,18 +302,19 @@ namespace Mei_Music
             if (UploadedSongList == null) return;
             var list = GetCurrentSongList(UploadedSongList);
             if (list == null || list.Count == 0) return;
-            if (CurrentSong == null)
+            if (ViewModel.CurrentSong == null)
             {
                 UploadedSongList.SelectedIndex = -1;
                 return;
             }
-            int index = IndexOfSongInList(list, CurrentSong);
+            int index = IndexOfSongInList(list, ViewModel.CurrentSong);
             UploadedSongList.SelectedIndex = index >= 0 ? index : -1;
         }
 
         /// <summary>
         /// Binds the right panel to user-liked songs.
         /// Skip Refresh() when switching source so tab change is instant; Refresh only when re-applying same source.
+        /// Saves/restores scroll position per tab so returning to Liked keeps the previous scroll.
         /// </summary>
         private void ApplyLikedSongsView()
         {
@@ -157,15 +323,91 @@ namespace Mei_Music
                 return;
             }
 
-            if (!ReferenceEquals(UploadedSongList.ItemsSource, LikedSongs))
+            SaveCurrentViewScrollOffset();
+
+            _activePlaylist = null;
+            if (PlaylistHeaderLabel != null)
+                PlaylistHeaderLabel.Content = "Liked";
+
+            bool switchedToLiked = !ReferenceEquals(UploadedSongList.ItemsSource, ViewModel.LikedSongs);
+            if (switchedToLiked)
             {
-                UploadedSongList.ItemsSource = LikedSongs;
+                UploadedSongList.ItemsSource = ViewModel.LikedSongs;
             }
             else
             {
                 UploadedSongList.Items.Refresh();
             }
+            _suppressSelectionChanged = true;
             SyncSelectionToCurrentSong();
+            _suppressSelectionChanged = false;
+
+            if (switchedToLiked)
+            {
+                double offsetToRestore = _likedViewScrollOffset;
+                Dispatcher.BeginInvoke(() =>
+                {
+                    var scrollViewer = FindScrollViewer(UploadedSongList);
+                    if (scrollViewer != null)
+                    {
+                        double target = Math.Min(offsetToRestore, Math.Max(0, scrollViewer.ScrollableHeight));
+                        scrollViewer.ScrollToVerticalOffset(target);
+                    }
+                }, DispatcherPriority.Loaded);
+            }
+        }
+
+        /// <summary>Saves the scroll offset of the current view before switching away.</summary>
+        private void SaveCurrentViewScrollOffset()
+        {
+            var sv = FindScrollViewer(UploadedSongList);
+            if (sv == null) return;
+
+            if (ReferenceEquals(UploadedSongList.ItemsSource, ViewModel.Songs))
+                _allViewScrollOffset = sv.VerticalOffset;
+            else if (ReferenceEquals(UploadedSongList.ItemsSource, ViewModel.LikedSongs))
+                _likedViewScrollOffset = sv.VerticalOffset;
+            else if (_activePlaylist != null)
+                _playlistViewScrollOffset = sv.VerticalOffset;
+        }
+
+        /// <summary>Switches the right panel to show the given playlist's songs.</summary>
+        private void ApplyPlaylistView(CreatedPlaylist playlist)
+        {
+            if (UploadedSongList == null) return;
+
+            SaveCurrentViewScrollOffset();
+
+            _activePlaylist = playlist;
+            if (PlaylistHeaderLabel != null)
+                PlaylistHeaderLabel.Content = playlist.Title;
+
+            // Uncheck All / Liked radio buttons
+            AllSongsButton.IsChecked = false;
+            LikedSongsButton.IsChecked = false;
+
+            // Build a filtered collection of songs that belong to this playlist
+            var playlistSongs = new ObservableCollection<Song>();
+            foreach (var name in playlist.SongNames)
+            {
+                var song = ViewModel.Songs.FirstOrDefault(s => s.Name == name);
+                if (song != null)
+                    playlistSongs.Add(song);
+            }
+
+            UploadedSongList.ItemsSource = playlistSongs;
+
+            _suppressSelectionChanged = true;
+            SyncSelectionToCurrentSong();
+            _suppressSelectionChanged = false;
+        }
+
+        private void PlaylistItem_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is not RadioButton btn) return;
+            if (btn.DataContext is not CreatedPlaylist playlist) return;
+
+            ApplyPlaylistView(playlist);
         }
 
         private void AllSongsButton_Checked(object sender, RoutedEventArgs e)
@@ -186,23 +428,35 @@ namespace Mei_Music
         /// </summary>
         private void InitializeMediaPlayer()
         {
-            timer.Interval = TimeSpan.FromSeconds(1);
-            timer.Tick += Timer_Tick;
-            timer.Start();
-
-            mediaPlayer.MediaOpened += MediaPlayer_MediaOpened; //detect for opened media
-            mediaPlayer.MediaEnded += MediaPlayer_MediaEnded;   //detect for ended media
+            ViewModel.MediaEnded += MediaPlayer_MediaEnded;   //detect for ended media
 
             var controller = new CoreAudioController();
             defaultPlaybackDevice = controller.DefaultPlaybackDevice;
             if (defaultPlaybackDevice != null)
             {
-                VolumeSlider.Value = defaultPlaybackDevice.Volume; // Set initial value from system volume
+                ViewModel.Volume = defaultPlaybackDevice.Volume; // Set initial value from system volume
+
+                // Subscribe to external volume changes out of the app
+                defaultPlaybackDevice.VolumeChanged.Subscribe(new VolumeObserver(args =>
+                {
+                    Application.Current.Dispatcher.Invoke(() =>
+                    {
+                        if (Math.Abs(ViewModel.Volume - args.Volume) > 0.1)
+                        {
+                            ViewModel.Volume = args.Volume;
+                        }
+                    });
+                }));
             }
         }
-        protected void OnPropertyChanged(string propertyName)
+
+        private class VolumeObserver : IObserver<DeviceVolumeChangedArgs>
         {
-            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+            private readonly Action<DeviceVolumeChangedArgs> _onNext;
+            public VolumeObserver(Action<DeviceVolumeChangedArgs> onNext) { _onNext = onNext; }
+            public void OnCompleted() { }
+            public void OnError(Exception error) { }
+            public void OnNext(DeviceVolumeChangedArgs value) { _onNext(value); }
         }
 
         /// <summary>
@@ -216,7 +470,7 @@ namespace Mei_Music
                 return;
             }
 
-            string iconPath = isPlaying
+            string iconPath = ViewModel.IsPlaying
                 ? "/Resources/Images/play_button.png"
                 : "/Resources/Images/pause_button.png";
 
@@ -228,21 +482,21 @@ namespace Mei_Music
         {
             var song = new Song
             {
-                Index = (Songs.Count + 1).ToString("D2"),
+                Index = (ViewModel.Songs.Count + 1).ToString("D2"),
                 Name = name
             };
 
-            Songs.Add(song);
+            ViewModel.Songs.Add(song);
             UpdateSongData();
         }
         private void RemoveSongFromList(string name)
         {
             // Find the song with the specified name in the list
-            var songToRemove = Songs.OfType<Song>().FirstOrDefault(song => song.Name == name);
+            var songToRemove = ViewModel.Songs.OfType<Song>().FirstOrDefault(song => song.Name == name);
 
             if (songToRemove != null)
             {
-                Songs.Remove(songToRemove);
+                ViewModel.Songs.Remove(songToRemove);
                 UpdateSongData();
             }
         }
@@ -265,7 +519,7 @@ namespace Mei_Music
                 if (fileExtension == ".mp4" || fileExtension == ".mkv")
                 {
                     string audioFilePath = ConvertVideoToAudio(selectedFile); //get the path to audio file
-                    if (audioFilePath != null)       
+                    if (audioFilePath != null)
                     {
                         AddFileToUI(audioFilePath);
                     }
@@ -310,7 +564,7 @@ namespace Mei_Music
                 {
                     throw new InvalidOperationException("Fail to start the ffmpeg process.");
                 }
-                using (process) 
+                using (process)
                 {
                     process.WaitForExit();
                 }
@@ -331,9 +585,9 @@ namespace Mei_Music
         {
             string fileNameWithoutExtension = System.IO.Path.GetFileNameWithoutExtension(filePath); //get file name
 
-            bool isDuplicate = Songs
+            bool isDuplicate = ViewModel.Songs
                                 .OfType<Song>()
-                                .Any(song => song.Name == fileNameWithoutExtension); 
+                                .Any(song => song.Name == fileNameWithoutExtension);
 
             if (isDuplicate) //if name already exists in the list
             {
@@ -368,38 +622,9 @@ namespace Mei_Music
             RemoveSongFromList(fileNameWithoutExtension);
             AddSongToList(fileNameWithoutExtension);
         }
-        private string PromptForNewName(string filePath)
+        private void PromptForNewName(string filePath)
         {
-            string originalName = System.IO.Path.GetFileNameWithoutExtension(filePath);
-            string outputDirectory = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Mei Music", "playlist");
-            
-            string newName = Microsoft.VisualBasic.Interaction.InputBox(
-                "Enter a new name for the file:",
-                "Create New Entry",
-                 originalName);
-
-            if (!string.IsNullOrEmpty(newName))
-            {
-                // create file name.mp3
-                string newFilePath = System.IO.Path.Combine(outputDirectory, newName + ".mp3");
-
-                // Check if the new name already exists in the directory
-                if (File.Exists(newFilePath))
-                {
-                    MessageBox.Show($"A file named \"{newName}\" already exists in the playlist. Please choose a different name.", "Duplicate Name", MessageBoxButton.OK, MessageBoxImage.Warning);
-                    return originalName;
-                }
-                else
-                {
-                    // Copy the original file to the new file path with the new name
-                    File.Copy(filePath, newFilePath);
-
-                    // Add the new name to the playlist in the UI
-                    AddSongToList(newName);
-                    return newName;
-                }
-            }
-            return originalName; // Return original name if no change
+            ViewModel.RenameSongCommand.Execute(ViewModel.Songs.FirstOrDefault(s => s.Name == System.IO.Path.GetFileNameWithoutExtension(filePath)) ?? new Song());
         }
         private void PlusButton_Click(object sender, RoutedEventArgs e)
         {
@@ -423,29 +648,7 @@ namespace Mei_Music
         /// </summary>
         private bool PlaySong(Song song)
         {
-            CurrentSong = song;
-            if (CurrentSong != null)
-            {
-                mediaPlayer.Volume = CurrentSong.Volume;
-                UpdateSongVolumeSlider(CurrentSong.Volume * 100);
-            }
-            string? fileName = song.Name;
-            string audioDirectory = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Mei Music", "playlist");
-            string mp3FilePath = System.IO.Path.Combine(audioDirectory, fileName + ".mp3");
-            string wavFilePath = System.IO.Path.Combine(audioDirectory, fileName + ".wav");
-            string? audioFilePath = File.Exists(mp3FilePath) ? mp3FilePath : (File.Exists(wavFilePath) ? wavFilePath : null);
-            if (audioFilePath == null)
-            {
-                isPlaying = false;
-                UpdatePlaybackButtonIcon();
-                MessageBox.Show("The selected file could not be found.");
-                return false;
-            }
-            mediaPlayer.Stop();
-            mediaPlayer.Open(new Uri(audioFilePath));
-            mediaPlayer.Volume = song.Volume / 100.0;
-            mediaPlayer.Play();
-            isPlaying = true;
+            ViewModel.PlaySong(song);
             UpdatePlaybackButtonIcon();
             return true;
         }
@@ -456,23 +659,32 @@ namespace Mei_Music
         /// </summary>
         private void PlaySelectedSong(object sender, SelectionChangedEventArgs? e)
         {
+            System.IO.File.AppendAllText("upload_bug_log.txt", "PlaySelectedSong triggered. Stack:\n" + new System.Diagnostics.StackTrace().ToString() + "\n\n");
+
+            if (_suppressSelectionChanged)
+                return;
+
             if (UploadedSongList.SelectedItem is not Song selectedSong)
                 return;
 
-            // Sync-only selection (e.g. after tab switch): same song already playing — do not restart.
-            if ((ReferenceEquals(selectedSong, CurrentSong) || selectedSong.Name == CurrentSong?.Name) && mediaPlayer.Source != null)
+            bool isAlreadyPlaying = false;
+            string? songName = selectedSong.Name;
+            if (ViewModel.CurrentSong != null && ViewModel.CurrentSong.Name == songName)
             {
-                if (CurrentSong != null)
-                {
-                    mediaPlayer.Volume = CurrentSong.Volume / 100.0;
-                    UpdateSongVolumeSlider(CurrentSong.Volume * 100);
-                }
-                return;
+                isAlreadyPlaying = true;
             }
 
-            _playbackList = GetCurrentSongList(UploadedSongList);
-            if (PlaySong(selectedSong))
+            // Sync-only selection (e.g. after tab switch): same song already playing — do not restart.
+            if (isAlreadyPlaying)
+            {
+                return;
+            }
+            else
+            {
+                _playbackList = GetCurrentSongList(UploadedSongList) ?? ViewModel.Songs;
+                PlaySong(selectedSong);
                 SaveSongIndex();
+            }
         }
         private T? FindVisualChild<T>(DependencyObject parent, string name) where T : FrameworkElement
         {
@@ -490,11 +702,31 @@ namespace Mei_Music
             }
             return null;
         }
+
+        /// <summary>Finds the first descendant of type T in the visual tree (e.g. ScrollViewer inside ListBox template).</summary>
+        private static T? FindVisualChildByType<T>(DependencyObject parent) where T : DependencyObject
+        {
+            for (int i = 0; i < VisualTreeHelper.GetChildrenCount(parent); i++)
+            {
+                var child = VisualTreeHelper.GetChild(parent, i);
+                if (child is T found)
+                    return found;
+                var result = FindVisualChildByType<T>(child);
+                if (result != null)
+                    return result;
+            }
+            return null;
+        }
+
+        private static ScrollViewer? FindScrollViewer(ListBox listBox)
+        {
+            return FindVisualChildByType<ScrollViewer>(listBox);
+        }
         private void PreviousSongClicked(object sender, RoutedEventArgs e)
         {
-            var list = _playbackList ?? GetCurrentSongList(UploadedSongList) ?? Songs;
+            var list = _playbackList ?? GetCurrentSongList(UploadedSongList) ?? ViewModel.Songs;
             if (list == null || list.Count == 0) return;
-            int currentIndex = IndexOfSongInList(list, CurrentSong);
+            int currentIndex = IndexOfSongInList(list, ViewModel.CurrentSong);
             if (currentIndex < 0) currentIndex = 0;
             int prevIndex = (currentIndex - 1 + list.Count) % list.Count;
             if (list[prevIndex] is not Song prevSong) return;
@@ -505,36 +737,14 @@ namespace Mei_Music
         }
         private void StopSongClicked(object sender, RoutedEventArgs e)
         {
-            if (isPlaying)
-            {
-                mediaPlayer.Pause();
-                isPlaying = false;
-                UpdatePlaybackButtonIcon();
-            }
-            else
-            {
-                if (mediaPlayer.Source != null)
-                {
-                    mediaPlayer.Play();
-                    isPlaying = true;
-                    UpdatePlaybackButtonIcon();
-                }
-                else
-                {
-                    if (UploadedSongList.SelectedItem == null)
-                    {
-                        MessageBox.Show("Please select a song to play.");
-                        return;
-                    }
-                    PlaySelectedSong(this, null);
-                }
-            }
+            ViewModel.TogglePlay();
+            UpdatePlaybackButtonIcon();
         }
         private void NextSongClicked(object sender, RoutedEventArgs e)
         {
-            var list = _playbackList ?? GetCurrentSongList(UploadedSongList) ?? Songs;
+            var list = _playbackList ?? GetCurrentSongList(UploadedSongList) ?? ViewModel.Songs;
             if (list == null || list.Count == 0) return;
-            int currentIndex = IndexOfSongInList(list, CurrentSong);
+            int currentIndex = IndexOfSongInList(list, ViewModel.CurrentSong);
             if (currentIndex < 0) currentIndex = 0;
             int nextIndex = (currentIndex + 1) % list.Count;
             if (list[nextIndex] is not Song nextSong) return;
@@ -543,21 +753,13 @@ namespace Mei_Music
             if (ReferenceEquals(GetCurrentSongList(UploadedSongList), _playbackList))
                 SaveSongIndex();
         }
-        private void MediaPlayer_MediaOpened(object? sender, EventArgs e)
-        {
-            //get info from opened media
-            if (mediaPlayer.NaturalDuration.HasTimeSpan)
-            {
-                TimeSpan totalDuration = mediaPlayer.NaturalDuration.TimeSpan;
-                SongLength_Timer.Content = totalDuration.ToString(@"mm\:ss");
-                SongProgressSlider.Maximum = totalDuration.TotalSeconds;
-            }
-        }
+
         private void MediaPlayer_MediaEnded(object? sender, EventArgs e)
         {
-            var list = _playbackList ?? GetCurrentSongList(UploadedSongList) ?? Songs;
+            System.IO.File.AppendAllText("upload_bug_log.txt", "MediaEnded triggered. Stack:\n" + new System.Diagnostics.StackTrace().ToString() + "\n\n");
+            var list = _playbackList ?? GetCurrentSongList(UploadedSongList) ?? ViewModel.Songs;
             if (list == null || list.Count == 0) return;
-            int currentIndex = IndexOfSongInList(list, CurrentSong);
+            int currentIndex = IndexOfSongInList(list, ViewModel.CurrentSong);
             if (currentIndex < 0) currentIndex = 0;
             int nextIndex = (currentIndex + 1) % list.Count;
             if (list[nextIndex] is not Song nextSong) return;
@@ -566,157 +768,8 @@ namespace Mei_Music
             if (ReferenceEquals(GetCurrentSongList(UploadedSongList), _playbackList))
                 SaveSongIndex();
         }
-        private void Timer_Tick(object? sender, EventArgs e)
-        {
-            //for updating timer value and progress slider
-            if (mediaPlayer.Source != null && mediaPlayer.NaturalDuration.HasTimeSpan && !isDragging)
-            {
-                SongProgressSlider.Value = mediaPlayer.Position.TotalSeconds;
-                SongProgress_Timer.Content = mediaPlayer.Position.ToString(@"mm\:ss");
-                SongLength_Timer.Content = mediaPlayer.NaturalDuration.TimeSpan.ToString(@"mm\:ss");
-            }
-        }
-        private void DeleteSong_Click(object sender, RoutedEventArgs e)
-        {
-            if (sender is Button deleteSong && deleteSong.Tag is Song song)
-            {
-                string? fileNameWithoutExtension = song.Name;
 
-                if (string.IsNullOrEmpty(fileNameWithoutExtension)) return;
 
-                var dialog = new DeleteSongConfirmationWindow($"Are you sure you want to delete '{fileNameWithoutExtension}'?");
-                dialog.Owner = this;
-                dialog.ShowDialog();
-
-                if (dialog.IsConfirmed)
-                {
-                    var songToRemove = Songs.FirstOrDefault(song => song.Name == fileNameWithoutExtension);
-                    if (songToRemove != null)
-                    {
-                        Songs.Remove(songToRemove); // Removes directly from the ObservableCollection
-                        UpdateSongData();
-                    }
-                    DeleteSong(fileNameWithoutExtension);
-
-                }
-            }
-        }
-        private void DeleteSong(string fileNameWithoutExtension)
-        {
-            if (string.IsNullOrEmpty(fileNameWithoutExtension)) return;
-
-            string audioDirectory = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Mei Music", "playlist");
-            string audioFile_mp3 = System.IO.Path.Combine(audioDirectory, fileNameWithoutExtension + ".mp3");
-            string audioFile_wav = System.IO.Path.Combine(audioDirectory, fileNameWithoutExtension + ".wav");
-
-            string? audioFilePath = null;
-
-            if (File.Exists(audioFile_mp3))
-            {
-                audioFilePath = audioFile_mp3;
-            }
-            if (File.Exists(audioFile_wav))
-            {
-                audioFilePath = audioFile_wav;
-            }
-
-            if (audioFilePath != null)
-            {
-                File.Delete(audioFilePath);
-                RefreshSongsInUI();
-            }
-        }
-        private void OpenFolder_Click(object sender, RoutedEventArgs e)
-        {
-            if (sender is Button folderButton && folderButton.Tag is Song song)
-            {
-                // Retrieve the file name from the Song object's Name property
-                string? fileNameWithoutExtension = song.Name;
-
-                // Construct the full file path
-                string audioDirectory = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Mei Music", "playlist");
-                string audioFile_mp3 = System.IO.Path.Combine(audioDirectory, fileNameWithoutExtension + ".mp3");
-                string audioFile_wav = System.IO.Path.Combine(audioDirectory, fileNameWithoutExtension + ".wav");
-
-                string? audioFilePath = null;
-
-                if (File.Exists(audioFile_mp3))
-                {
-                    audioFilePath = audioFile_mp3;
-                }
-                if (File.Exists(audioFile_wav))
-                {
-                    audioFilePath = audioFile_wav;
-                }
-
-                if (audioFilePath != null)
-                {
-                    // Use Process to open the file location with the file selected
-                    var psi = new ProcessStartInfo
-                    {
-                        FileName = "explorer.exe",
-                        Arguments = $"/select,\"{audioFilePath}\""
-                    };
-                    Process.Start(psi);
-                }
-                else
-                {
-                    MessageBox.Show("File not found in storage.");
-                }
-            }
-        }
-        private void RenameSong_Click(object sender, RoutedEventArgs e)
-        {
-            if (sender is Button renameButton && renameButton.Tag is string fileName)
-            {
-                // Define the output directory
-                string outputDirectory = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Mei Music", "playlist");
-
-                // Construct the full path to the file
-                string filePath = System.IO.Path.Combine(outputDirectory, fileName + ".mp3");
-
-                // Call PromptForNewName with the constructed file path
-                string newFileName = PromptForNewName(filePath);
-
-                // Check if the new name is different from the old name
-                if (!string.IsNullOrEmpty(newFileName) && newFileName != fileName)
-                {
-                    // Delete the old song file only if the name has changed
-                    DeleteSong(fileName);
-                }
-            }
-            else
-            {
-                MessageBox.Show("File name not found in the Tag property.");
-            }
-        }
-
-        /// <summary>
-        /// Toggles the song's liked state, updates LikedSongs, and persists to disk.
-        /// Same Song instance is kept in Songs and LikedSongs so UI stays in sync.
-        /// </summary>
-        private void ToggleLike_Click(object sender, RoutedEventArgs e)
-        {
-            if (sender is not Button likeButton || likeButton.Tag is not Song song)
-            {
-                return;
-            }
-
-            song.IsLiked = !song.IsLiked;
-            if (song.IsLiked)
-            {
-                if (!LikedSongs.Contains(song))
-                {
-                    LikedSongs.Add(song);
-                }
-            }
-            else
-            {
-                LikedSongs.Remove(song);
-            }
-
-            SaveSongData(Songs.ToList());
-        }
 
         private void SaveSongIndex()
         {
@@ -728,13 +781,13 @@ namespace Mei_Music
             UploadedSongList.SelectionChanged -= PlaySelectedSong;
 
             int SongIndex = Properties.Settings.Default.LastSelectedIndex;
-            if (SongIndex >= 0 && SongIndex < Songs.Count)
+            if (SongIndex >= 0 && SongIndex < ViewModel.Songs.Count)
             {
                 UploadedSongList.SelectedIndex = SongIndex;
             }
 
             UploadedSongList.SelectionChanged += PlaySelectedSong;
-            isPlaying = false;
+            ViewModel.IsPlaying = false;
             UpdatePlaybackButtonIcon();
         }
 
@@ -742,7 +795,7 @@ namespace Mei_Music
         private void SetSystemVolume(double volume)
         {
             // Helper method to set system volume
-            if (defaultPlaybackDevice != null)
+            if (defaultPlaybackDevice != null && Math.Abs(defaultPlaybackDevice.Volume - volume) > 0.1)
             {
                 defaultPlaybackDevice.Volume = volume;
             }
@@ -762,15 +815,15 @@ namespace Mei_Music
         private void SongProgressSlider_PreviewMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
         {
             Slider_PreviewMouseLeftButtonUp(sender, e);
-            mediaPlayer.Position = TimeSpan.FromSeconds(SongProgressSlider.Value); // Seek to the selected position
+            ViewModel.Seek(SongProgressSlider.Value); // Seek to the selected position
             SongProgressSlider.ReleaseMouseCapture();
         }
         private void SongProgressSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
         {
-            if(isDragging || mediaPlayer.NaturalDuration.HasTimeSpan)
+            if (isDragging || ViewModel.TotalTimeSeconds > 0)
             {
                 TimeSpan currentTime = TimeSpan.FromSeconds(SongProgressSlider.Value);
-                SongProgress_Timer.Content = currentTime.ToString(@"mm\:ss");
+                ViewModel.CurrentTimeText = currentTime.ToString(@"mm\:ss");
             }
         }
         private void Slider_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
@@ -816,178 +869,13 @@ namespace Mei_Music
                 SetSystemVolume(slider.Value);
             }
         }
-        private void SongVolumeButton_Click(object sender, RoutedEventArgs e)
-        {
 
-            if (sender is Button button && button.DataContext is Song song)
-            {
-               
-                // Initialize SongVolumeController with the correct volume
-                var songVolumeController = new SongVolumeController(song.Volume)
-                {
-                    Owner = this,
-                    VolumeChangedCallback = newVolume =>
-                    {
-                        // Update the song’s volume
-                        song.Volume = newVolume;
-
-                        // Apply to mediaPlayer if this song is playing
-                        string? songName = song.Name;
-                        if (!string.IsNullOrEmpty(songName) &&
-                            mediaPlayer.Source?.OriginalString.Contains(songName) == true)
-                        {
-                            mediaPlayer.Volume = newVolume / 100.0;
-                        }
-
-                        // Save updated song data
-                        SaveSongData(Songs.ToList());
-                    }
-                };
-
-                songVolumeController.ShowDialog();
-            }
-        }
         //----------------------------------------------------------------------------------
 
 
 
         //------------------------- Sorting Playlist Implementation ------------------------
-        private void SortAlphabetically_Click(object sender, RoutedEventArgs e)
-        {
-            var sortedItems = playlistSortService.SortAlphabetically(Songs);
-            RefreshPlaylist(sortedItems);
-        }
-        private void SortByModification_Click(object sender, RoutedEventArgs e)
-        {
-            string outputDirectory = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Mei Music", "playlist");
-            var sortedItems = playlistSortService.SortByModificationDate(Songs, outputDirectory);
-            RefreshPlaylist(sortedItems);
-        }
-        private void RefreshPlaylist(List<Song> sortedItems)
-        {
-            Songs.Clear();
 
-            int count = 1;
-            foreach (var song in sortedItems)
-            {
-                song.Index = count.ToString("D2");  // Update index based on sorted order
-                Songs.Add(song);
-                count++;
-            }
-            UpdateSongData();
-        }
-
-        /// <summary>
-        /// Reconciles playlist UI data with files in the playlist folder by cleaning
-        /// invalid files, resolving duplicate formats, removing stale entries, and
-        /// adding newly discovered songs.
-        /// </summary>
-        private void RefreshSongsInUI()
-        {
-            // Step 1: Check for any non audio file. Delete them
-            string audioDirectory = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Mei Music", "playlist");
-            bool nonAudioFilesFound = false;
-
-            foreach (string filePath in Directory.GetFiles(audioDirectory))
-            {
-                string extention = System.IO.Path.GetExtension(filePath).ToLower();
-                if(extention != ".mp3" && extention != ".wav")
-                {
-                    nonAudioFilesFound = true;
-                    try
-                    {
-                        // Send to Recycle Bin instead of hard delete to keep recovery possible.
-                        Microsoft.VisualBasic.FileIO.FileSystem.DeleteFile(
-                            filePath,
-                            Microsoft.VisualBasic.FileIO.UIOption.OnlyErrorDialogs,
-                            Microsoft.VisualBasic.FileIO.RecycleOption.SendToRecycleBin);
-                    }
-                    catch (Exception ex)
-                    {
-                        MessageBox.Show($"Failed to move file '{filePath}' to the Recycle Bin: {ex.Message}.\nPlease keep user/AppData/Local/MeiMusic/playlist folder clean of only audio files to allow proper functionality.");
-                    }
-                }
-            }
-
-            if (nonAudioFilesFound)
-            {
-                MessageBox.Show("Some Non-mp3/wav files are detected; they have been moved to the trash bin.\nPlease keep user/AppData/Local/MeiMusic/playlist folder clean of only audio files to allow proper functionality.");
-            }
-
-            // Step 2: Delete duplicate file
-            var mp3Files = new HashSet<string>();
-            foreach (string filePath in Directory.GetFiles(audioDirectory))
-            {
-                string extension = System.IO.Path.GetExtension(filePath).ToLower();
-                string fileNameWithoutExtension = System.IO.Path.GetFileNameWithoutExtension(filePath);
-
-                if (extension == ".mp3")
-                {
-                    mp3Files.Add(fileNameWithoutExtension);
-                }
-                else if (extension == ".wav" && mp3Files.Contains(fileNameWithoutExtension))
-                {
-                    // If .wav file has a corresponding .mp3 file, delete the .wav version
-                    try
-                    {
-                        Microsoft.VisualBasic.FileIO.FileSystem.DeleteFile(
-                            filePath,
-                            Microsoft.VisualBasic.FileIO.UIOption.OnlyErrorDialogs,
-                            Microsoft.VisualBasic.FileIO.RecycleOption.SendToRecycleBin);
-
-                        MessageBox.Show($"Duplicate found for '{fileNameWithoutExtension}'. The .wav version has been deleted.");
-                    }
-                    catch (Exception ex)
-                    {
-                        MessageBox.Show($"Failed to delete duplicate .wav file '{filePath}': {ex.Message}\nPlease don't have duplicate file name in the user/AppData/Local/MeiMusic/playlist folder to allow proper functionality.");
-                    }
-                }
-            }
-
-            // Step 3: Sync UI with Folder - Remove items from the UI if their corresponding files no longer exist
-            var filesInFolder = new HashSet<string>(Directory.GetFiles(audioDirectory)
-                .Where(file => System.IO.Path.GetExtension(file).ToLower() == ".mp3" || System.IO.Path.GetExtension(file).ToLower() == ".wav")
-                .Select(file => System.IO.Path.GetFileNameWithoutExtension(file)));
-
-            for (int i = Songs.Count - 1; i >= 0; i--)
-            {
-                string? songName = Songs[i]?.Name;
-                if (songName != null && !filesInFolder.Contains(songName))
-                {
-                    Songs.RemoveAt(i);
-                    UpdateSongData();
-                }
-            }
-
-            // Step 4: Add missing MP3/WAV files to UI
-            foreach (string filePath in Directory.GetFiles(audioDirectory))
-            {
-                string extension = System.IO.Path.GetExtension(filePath).ToLower();
-                if (extension == ".mp3" || extension == ".wav")
-                {
-                    string fileNameWithoutExtension = System.IO.Path.GetFileNameWithoutExtension(filePath);
-                    var existingSong = Songs.FirstOrDefault(s => s.Name == fileNameWithoutExtension);
-
-                    // If song already exists, skip adding a new one to preserve data
-                    if (existingSong != null) continue;
-
-                    // Create a new song object only if it doesn't already exist
-                    var newSong = new Song
-                    {
-                        Name = fileNameWithoutExtension,
-                        Volume = 50 // Set a default value if the volume is not in the loaded data
-                    };
-
-                    Songs.Add(newSong);
-                    UpdateSongData();
-                }
-            }
-        }
-        private void RefreshButton_Click(object sender, RoutedEventArgs e)
-        {
-            // Event handler for the Refresh Button
-            RefreshSongsInUI();
-        }
         //----------------------------------------------------------------------------------
 
 
@@ -1036,19 +924,19 @@ namespace Mei_Music
             try
             {
                 var loadedSongs = fileService.LoadSongs(songDataFilePath);
-                Songs.Clear();
+                ViewModel.Songs.Clear();
                 foreach (var loadedSong in loadedSongs)
                 {
-                    Songs.Add(loadedSong);
+                    ViewModel.Songs.Add(loadedSong);
                 }
 
                 // Keep LikedSongs in sync with Songs that have IsLiked set (e.g. after load or refresh).
-                LikedSongs.Clear();
-                foreach (var song in Songs)
+                ViewModel.LikedSongs.Clear();
+                foreach (var song in ViewModel.Songs)
                 {
                     if (song.IsLiked)
                     {
-                        LikedSongs.Add(song);
+                        ViewModel.LikedSongs.Add(song);
                     }
                 }
             }
@@ -1058,39 +946,40 @@ namespace Mei_Music
             }
         }
 
-        /// <summary>
-        /// Applies index updates and persists the normalized playlist back to disk.
-        /// Reloading immediately keeps the in-memory collection consistent with
-        /// serialization rules from FileService.
-        /// </summary>
         private void UpdateSongData()
         {
             UpdateSongIndexes();
-            SaveSongData(Songs.ToList());  // Save the current Songs collection to the JSON file
-            LoadSongData();                // Reload Songs collection from the updated JSON file
+            SaveSongData(ViewModel.Songs.ToList());  // Save the current Songs collection to the JSON file
         }
         private void UpdateSongIndexes()
         {
             int indexCounter = 1;
-            foreach (var song in Songs)
+            foreach (var song in ViewModel.Songs)
             {
                 song.Index = indexCounter.ToString("D2"); // Set or update the index property
                 indexCounter++;
             }
         }
-        private void UpdateSongVolumeSlider(double? volume)
+
+        private void SongItem_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
         {
-            // Attempt to locate the SongVolumeSlider dynamically if it’s not directly accessible
-            var songVolumeSlider = FindName("SongVolumeSlider") as Slider;
-            if (songVolumeSlider != null)
+            if (sender is FrameworkElement fe && fe.DataContext is Song song)
             {
-                songVolumeSlider.Value = volume ?? 50;
+                _playbackList = GetCurrentSongList(UploadedSongList) ?? ViewModel.Songs;
+                PlaySong(song);
+                SaveSongIndex();
             }
         }
 
         //------------------------- Icon bar implementation --------------------------------
         private void TitleBar_MouseDown(object sender, MouseButtonEventArgs e)
         {
+            // Dismiss the custom context menu if open
+            if (PlaylistContextMenuOverlay.Visibility == Visibility.Visible)
+            {
+                PlaylistContextMenuOverlay.Visibility = Visibility.Collapsed;
+            }
+
             if (e.ChangedButton == MouseButton.Left)
             {
                 this.DragMove();
@@ -1110,7 +999,7 @@ namespace Mei_Music
         private void Close_Click(object sender, RoutedEventArgs e)
         {
             SaveSongIndex(); // Save before closing
-            SaveSongData(Songs.ToList());
+            ViewModel.SaveSongData();
 
             this.Close();
         }
@@ -1119,7 +1008,7 @@ namespace Mei_Music
             base.OnClosing(e);
 
             SaveSongIndex();
-            SaveSongData(Songs.ToList());
+            ViewModel.SaveSongData();
         }
 
         //----------------------------------------------------------------------------------

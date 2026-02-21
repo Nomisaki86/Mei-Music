@@ -52,5 +52,36 @@ namespace Mei_Music.Services
 
             return normalizedSongs;
         }
+
+        /// <summary>
+        /// Persists the list of created playlists to disk as JSON.
+        /// Parent directory is created on demand.
+        /// </summary>
+        public void SavePlaylists(string playlistsFilePath, IEnumerable<CreatedPlaylist> playlists)
+        {
+            string? parentDirectory = Path.GetDirectoryName(playlistsFilePath);
+            if (!string.IsNullOrWhiteSpace(parentDirectory))
+            {
+                Directory.CreateDirectory(parentDirectory);
+            }
+
+            string json = JsonConvert.SerializeObject(playlists, Formatting.Indented);
+            File.WriteAllText(playlistsFilePath, json);
+        }
+
+        /// <summary>
+        /// Loads created playlists from disk. Returns an empty list if the file does not exist.
+        /// </summary>
+        public List<CreatedPlaylist> LoadPlaylists(string playlistsFilePath)
+        {
+            if (!File.Exists(playlistsFilePath))
+            {
+                return new List<CreatedPlaylist>();
+            }
+
+            string json = File.ReadAllText(playlistsFilePath);
+            var loaded = JsonConvert.DeserializeObject<List<CreatedPlaylist>>(json) ?? new List<CreatedPlaylist>();
+            return loaded;
+        }
     }
 }

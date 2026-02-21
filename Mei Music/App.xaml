@@ -8,6 +8,15 @@
         <SolidColorBrush x:Key="SidebarForegroundBrush" Color="#5E6673"/>
         <SolidColorBrush x:Key="SidebarGlyphBrush" Color="#FF4A5061"/>
         <SolidColorBrush x:Key="SidebarGlyphHoverBrush" Color="#3D4352"/>
+        
+        <!-- Sidebar Button Interaction Colors -->
+        <SolidColorBrush x:Key="SidebarItemHoverBackground" Color="#D0D6DF"/>
+        <SolidColorBrush x:Key="SidebarItemHoverIconBackground" Color="#C2C9D4"/>
+        <SolidColorBrush x:Key="SidebarItemSelectedBackground" Color="#FFC3CAD5"/>
+
+        <!-- Panel Background Colors -->
+        <SolidColorBrush x:Key="LeftPanelBackground" Color="#FFDFE4EB"/>
+        <SolidColorBrush x:Key="RightPanelBackground" Color="#F0F2F5"/>
 
         <Style x:Key="RepeatButtonTransparent" TargetType="{x:Type RepeatButton}">
             <Setter Property="OverridesDefaultStyle" Value="true"/>
@@ -249,17 +258,41 @@
         </Style>
 
         <Style x:Key="SongListStyle" TargetType="ListBoxItem">
-            <!-- Default Item Style -->
             <Setter Property="Background" Value="Transparent"/>
-            <Setter Property="Foreground" Value="Black"/>
-
-            <!-- Selected Item Style -->
-            <Style.Triggers>
-                <Trigger Property="IsSelected" Value="True">
-                    <Setter Property="Background" Value="Silver"/> <!-- Light blue background -->
-                    <Setter Property="FontWeight" Value="Bold"/>
-                </Trigger>
-            </Style.Triggers>
+            <Setter Property="Foreground" Value="#333333"/>
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="Margin" Value="8,1,8,1"/>
+            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ListBoxItem">
+                        <Border x:Name="ItemBorder"
+                                Background="{TemplateBinding Background}"
+                                CornerRadius="6"
+                                Padding="{TemplateBinding Padding}"
+                                SnapsToDevicePixels="True">
+                            <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                              VerticalAlignment="{TemplateBinding VerticalContentAlignment}"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="ItemBorder" Property="Background" Value="#F2F5F8"/>
+                            </Trigger>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="ItemBorder" Property="Background" Value="#FFFFFF"/>
+                                <Setter Property="FontWeight" Value="SemiBold"/>
+                            </Trigger>
+                            <MultiTrigger>
+                                <MultiTrigger.Conditions>
+                                    <Condition Property="IsSelected" Value="True"/>
+                                    <Condition Property="IsMouseOver" Value="True"/>
+                                </MultiTrigger.Conditions>
+                                <Setter TargetName="ItemBorder" Property="Background" Value="#FFFFFF"/>
+                            </MultiTrigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
         </Style>
 
         <!-- Shared button foundation and variants -->
@@ -369,16 +402,44 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="CardBorder" Property="Background" Value="#DCE2EA"/>
-                                <Setter TargetName="IconContainer" Property="Background" Value="#C8D1DE"/>
-                            </Trigger>
-                            <Trigger Property="IsPressed" Value="True">
-                                <Setter TargetName="CardBorder" Property="Background" Value="#D1D8E2"/>
-                                <Setter TargetName="IconContainer" Property="Background" Value="#BDC8D7"/>
+                                <Setter TargetName="CardBorder" Property="Background" Value="{StaticResource SidebarItemHoverBackground}"/>
+                                <Setter TargetName="IconContainer" Property="Background" Value="{StaticResource SidebarItemHoverIconBackground}"/>
                             </Trigger>
                             <Trigger Property="IsEnabled" Value="False">
                                 <Setter TargetName="CardBorder" Property="Opacity" Value="0.6"/>
                             </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Playlist list item: same card look as SidebarActionCard but content is custom (icon + title). -->
+        <Style x:Key="SidebarPlaylistCardButtonStyle" TargetType="RadioButton" BasedOn="{x:Null}">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Foreground" Value="{StaticResource SidebarForegroundBrush}"/>
+            <Setter Property="GroupName" Value="SidebarNavGroup"/>
+            <Setter Property="Padding" Value="7,6"/>
+            <Setter Property="HorizontalContentAlignment" Value="Left"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="RadioButton">
+                        <Border x:Name="CardBorder" Background="Transparent" CornerRadius="8" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter Content="{TemplateBinding Content}" HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}" VerticalAlignment="{TemplateBinding VerticalContentAlignment}"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="CardBorder" Property="Background" Value="{StaticResource SidebarItemSelectedBackground}"/>
+                            </Trigger>
+                            <MultiTrigger>
+                                <MultiTrigger.Conditions>
+                                    <Condition Property="IsChecked" Value="False"/>
+                                    <Condition Property="IsMouseOver" Value="True"/>
+                                </MultiTrigger.Conditions>
+                                <Setter TargetName="CardBorder" Property="Background" Value="{StaticResource SidebarItemHoverBackground}"/>
+                            </MultiTrigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
                 </Setter.Value>
@@ -427,18 +488,15 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsChecked" Value="True">
-                                <Setter TargetName="CardBorder" Property="Background" Value="#DCE2EA"/>
+                                <Setter TargetName="CardBorder" Property="Background" Value="{StaticResource SidebarItemSelectedBackground}"/>
                             </Trigger>
                             <MultiTrigger>
                                 <MultiTrigger.Conditions>
                                     <Condition Property="IsChecked" Value="False"/>
                                     <Condition Property="IsMouseOver" Value="True"/>
                                 </MultiTrigger.Conditions>
-                                <Setter TargetName="CardBorder" Property="Background" Value="#DCE2EA"/>
+                                <Setter TargetName="CardBorder" Property="Background" Value="{StaticResource SidebarItemHoverBackground}"/>
                             </MultiTrigger>
-                            <Trigger Property="IsPressed" Value="True">
-                                <Setter TargetName="CardBorder" Property="Background" Value="#D1D8E2"/>
-                            </Trigger>
                             <Trigger Property="IsEnabled" Value="False">
                                 <Setter TargetName="CardBorder" Property="Opacity" Value="0.6"/>
                             </Trigger>
