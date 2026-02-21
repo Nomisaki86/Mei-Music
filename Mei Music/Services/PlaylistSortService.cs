@@ -6,12 +6,12 @@ using System.Linq;
 
 namespace Mei_Music.Services
 {
-    public class PlaylistSortService
+    public class PlaylistSortService : IPlaylistSortService
     {
         /// <summary>
         /// Returns a new list sorted by song name in ascending order.
         /// </summary>
-        public List<Song> SortAlphabetically(IEnumerable<Song> songs)
+        public List<Song> SortAlphabetically(IList<Song> songs)
         {
             return songs
                 .OrderBy(song => song.Name)
@@ -21,7 +21,7 @@ namespace Mei_Music.Services
         /// <summary>
         /// Sorts by newest file update time first, checking mp3 then wav.
         /// </summary>
-        public List<Song> SortByModificationDate(IEnumerable<Song> songs, string outputDirectory)
+        public List<Song> SortByModificationDate(IList<Song> songs, string outputDirectory)
         {
             return songs
                 .OrderByDescending(item =>

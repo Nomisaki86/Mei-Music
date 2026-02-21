@@ -11,8 +11,8 @@ namespace Mei_Music.ViewModels
 {
     public partial class MainViewModel : ObservableObject
     {
-        private readonly FileService _fileService;
-        private readonly PlaylistSortService _playlistSortService;
+        private readonly IFileService _fileService;
+        private readonly IPlaylistSortService _playlistSortService;
         private readonly IAudioPlayerService _audioPlayer;
         private readonly IDialogService _dialogService;
 
@@ -21,13 +21,12 @@ namespace Mei_Music.ViewModels
         private readonly string _playlistIconsDirectory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Mei Music", "playlist-icons");
         private readonly string _audioDirectory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Mei Music", "playlist");
 
-        public MainViewModel()
+        public MainViewModel(IFileService fileService, IPlaylistSortService playlistSortService, IAudioPlayerService audioPlayer, IDialogService dialogService)
         {
-            // Initialize services (ideally these would be injected via constructor, but we'll instantiate for now)
-            _fileService = new FileService();
-            _playlistSortService = new PlaylistSortService();
-            _audioPlayer = new AudioPlayerService();
-            _dialogService = new DialogService();
+            _fileService = fileService;
+            _playlistSortService = playlistSortService;
+            _audioPlayer = audioPlayer;
+            _dialogService = dialogService;
 
             Songs = new ObservableCollection<Song>();
             LikedSongs = new ObservableCollection<Song>();
@@ -372,9 +371,12 @@ namespace Mei_Music.ViewModels
                 }
             }
 
-            var filesInFolder = new System.Collections.Generic.HashSet<string>(Directory.GetFiles(_audioDirectory)
+            var filesInFolder = new System.Collections.Generic.HashSet<string>(
+                Directory.GetFiles(_audioDirectory)
                 .Where(f => Path.GetExtension(f).ToLower() == ".mp3" || Path.GetExtension(f).ToLower() == ".wav")
-                .Select(Path.GetFileNameWithoutExtension));
+                .Select(Path.GetFileNameWithoutExtension)
+                .Where(n => n != null)!
+            );
 
             for (int i = Songs.Count - 1; i >= 0; i--)
             {

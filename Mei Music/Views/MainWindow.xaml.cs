@@ -26,8 +26,8 @@ namespace Mei_Music
         private bool isDragging = false;
         private Slider? currentSlider;
         private CoreAudioDevice? defaultPlaybackDevice;
-        private readonly FileService fileService = new FileService();
-        private readonly PlaylistSortService playlistSortService = new PlaylistSortService();
+        private readonly IFileService fileService;
+        private readonly IPlaylistSortService playlistSortService;
 
         private string songDataFilePath = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Mei Music", "songData.json");
         private static readonly string PlaylistsFilePath = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Mei Music", "playlists.json");
@@ -48,16 +48,13 @@ namespace Mei_Music
         /// <summary>Saved vertical scroll offset for the last viewed playlist.</summary>
         private double _playlistViewScrollOffset;
 
-        private bool _isDraggingCard;
-        private Point _dragStartMousePos;
-        private Point _dragStartTransformPos;
-
-        public MainWindow()
+        public MainWindow(MainViewModel viewModel, IFileService fileService, IPlaylistSortService playlistSortService)
         {
+            this.fileService = fileService;
+            this.playlistSortService = playlistSortService;
 
             InitializeComponent();
-            var mainViewModel = new ViewModels.MainViewModel();
-            this.DataContext = mainViewModel;
+            this.DataContext = viewModel;
 
             string audioDirectory = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Mei Music", "playlist");
             Directory.CreateDirectory(audioDirectory);
@@ -101,7 +98,7 @@ namespace Mei_Music
         /// <summary>Persists CreatedPlaylists to disk.</summary>
         private void SaveCreatedPlaylists()
         {
-            fileService.SavePlaylists(PlaylistsFilePath, ViewModel.CreatedPlaylists);
+            fileService.SavePlaylists(PlaylistsFilePath, ViewModel.CreatedPlaylists.ToList());
         }
 
         /// <summary>Shows the in-app create-playlist overlay; card raises CreateClicked or CloseRequested.</summary>

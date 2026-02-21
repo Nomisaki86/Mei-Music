@@ -38,7 +38,7 @@
                 <!-- Right Side (window control buttons) -->
                 <StackPanel Orientation="Horizontal" DockPanel.Dock="Right" Margin="0,0,10,0" HorizontalAlignment="Right" VerticalAlignment="Center">
                     <Button Content="─" Click="Minimize_Click" Style="{StaticResource TitleBarButtonStyle}" />
-                    <Button Content="☐" Click="Maximize_Click" Style="{StaticResource TitleBarButtonStyle}" />
+                      <Button Content="☐" Click="Maximize_Click" Style="{StaticResource TitleBarButtonStyle}" />
                     <Button Content="✕" Click="Close_Click" Style="{StaticResource TitleBarCloseButtonStyle}" />
                 </StackPanel>
 

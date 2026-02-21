@@ -5,13 +5,13 @@ using System.IO;
 
 namespace Mei_Music.Services
 {
-    public class FileService
+    public class FileService : IFileService
     {
         /// <summary>
         /// Persists the in-memory song metadata to disk as formatted JSON.
         /// The parent folder is created on demand so first-run saves succeed.
         /// </summary>
-        public void SaveSongs(string songDataFilePath, IEnumerable<Song> songs)
+        public void SaveSongs(string songDataFilePath, List<Song> songs)
         {
             string? parentDirectory = Path.GetDirectoryName(songDataFilePath);
             if (!string.IsNullOrWhiteSpace(parentDirectory))
@@ -57,7 +57,7 @@ namespace Mei_Music.Services
         /// Persists the list of created playlists to disk as JSON.
         /// Parent directory is created on demand.
         /// </summary>
-        public void SavePlaylists(string playlistsFilePath, IEnumerable<CreatedPlaylist> playlists)
+        public void SavePlaylists(string playlistsFilePath, List<CreatedPlaylist> playlists)
         {
             string? parentDirectory = Path.GetDirectoryName(playlistsFilePath);
             if (!string.IsNullOrWhiteSpace(parentDirectory))
