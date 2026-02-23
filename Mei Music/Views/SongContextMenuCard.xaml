@@ -18,12 +18,22 @@
                 <StackPanel Style="{StaticResource ContextMenuCardRowLayoutStyle}">
                     <Rectangle Style="{StaticResource ContextMenuCardGlyphRectangleStyle}">
                         <Rectangle.OpacityMask>
-                            <ImageBrush ImageSource="pack://application:,,,/Resources/Images/add-list.png"
+                            <ImageBrush ImageSource="/Resources/Images/add-list.png"
                                         Stretch="Uniform"
                                         RenderOptions.BitmapScalingMode="Fant"/>
                         </Rectangle.OpacityMask>
                     </Rectangle>
                     <TextBlock Text="Add to Playlist"
+                               Style="{StaticResource ContextMenuCardLabelStyle}"/>
+                </StackPanel>
+            </Button>
+
+            <!-- Adjust Volume -->
+            <Button x:Name="AdjustVolumeButton" Click="AdjustVolumeButton_Click"
+                    Style="{StaticResource ContextMenuCardActionButtonStyle}">
+                <StackPanel Style="{StaticResource ContextMenuCardRowLayoutStyle}">
+                    <TextBlock Text="🔊" Style="{StaticResource ContextMenuCardGlyphTextStyle}"/>
+                    <TextBlock Text="Adjust Volume"
                                Style="{StaticResource ContextMenuCardLabelStyle}"/>
                 </StackPanel>
             </Button>
@@ -34,7 +44,7 @@
                 <StackPanel Style="{StaticResource ContextMenuCardRowLayoutStyle}">
                     <Rectangle Style="{StaticResource ContextMenuCardGlyphRectangleStyle}">
                         <Rectangle.OpacityMask>
-                            <ImageBrush ImageSource="pack://application:,,,/Resources/Images/edit.png"
+                            <ImageBrush ImageSource="/Resources/Images/edit.png"
                                         Stretch="Uniform"
                                         RenderOptions.BitmapScalingMode="Fant"/>
                         </Rectangle.OpacityMask>
@@ -50,7 +60,7 @@
                 <StackPanel Style="{StaticResource ContextMenuCardRowLayoutStyle}">
                     <Rectangle Style="{StaticResource ContextMenuCardGlyphRectangleStyle}">
                         <Rectangle.OpacityMask>
-                            <ImageBrush ImageSource="pack://application:,,,/Resources/Images/folder.png"
+                            <ImageBrush ImageSource="/Resources/Images/folder.png"
                                         Stretch="Uniform"
                                         RenderOptions.BitmapScalingMode="Fant"/>
                         </Rectangle.OpacityMask>
@@ -69,7 +79,7 @@
                 <StackPanel Style="{StaticResource ContextMenuCardRowLayoutStyle}">
                     <Rectangle Style="{StaticResource ContextMenuCardGlyphRectangleStyle}">
                         <Rectangle.OpacityMask>
-                            <ImageBrush ImageSource="pack://application:,,,/Resources/Images/delete.png"
+                            <ImageBrush ImageSource="/Resources/Images/delete.png"
                                         Stretch="Uniform"
                                         RenderOptions.BitmapScalingMode="Fant"/>
                         </Rectangle.OpacityMask>

@@ -29,15 +29,16 @@ namespace Mei_Music.Models
         public const double TitleMinWidth = 80;
         public const double OptionsMinWidth = 0;
         public const double LikedMinWidth = 48;
-        public const double VolumeMinWidth = 32;
-        public const double TimeMinWidth = 62;
+        // Volume action moved into the context menu, so the dedicated row column stays collapsed.
+        public const double VolumeMinWidth = 0;
+        public const double TimeMinWidth = 48;
 
         public const double IndexDefaultWidth = 50;
         public const double TitleDefaultWidth = 350;
         public const double OptionsDefaultWidth = 0;
         public const double LikedDefaultWidth = 68;
-        public const double VolumeDefaultWidth = 36;
-        public const double TimeDefaultWidth = 64;
+        public const double VolumeDefaultWidth = 0;
+        public const double TimeDefaultWidth = 52;
 
         [ObservableProperty] private GridLength _indexWidth = new(IndexDefaultWidth);
         [ObservableProperty] private GridLength _titleWidth = new(TitleDefaultWidth);

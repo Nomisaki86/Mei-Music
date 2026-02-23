@@ -5,13 +5,16 @@ using System.Windows.Controls;
 namespace Mei_Music
 {
     /// <summary>
-    /// Popup card used for per-song context actions (add, rename, open folder, delete).
+    /// Popup card used for per-song context actions (add to playlist, adjust volume, rename, open folder, delete).
     /// This control only raises events; action handling is implemented by MainWindow/ViewModel.
     /// </summary>
     public partial class SongContextMenuCard : UserControl
     {
         /// <summary>Raised when user chooses "Add to Playlist".</summary>
         public event EventHandler? AddRequested;
+
+        /// <summary>Raised when user chooses "Adjust Volume".</summary>
+        public event EventHandler? VolumeRequested;
 
         /// <summary>Raised when user chooses "Rename".</summary>
         public event EventHandler? RenameRequested;
@@ -36,6 +39,14 @@ namespace Mei_Music
         private void AddToPlaylistButton_Click(object sender, RoutedEventArgs e)
         {
             AddRequested?.Invoke(this, EventArgs.Empty);
+        }
+
+        /// <summary>
+        /// Forwards adjust-volume intent to host.
+        /// </summary>
+        private void AdjustVolumeButton_Click(object sender, RoutedEventArgs e)
+        {
+            VolumeRequested?.Invoke(this, EventArgs.Empty);
         }
 
         /// <summary>

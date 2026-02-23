@@ -1,11 +1,27 @@
 ---
-description: Core project rules, initialization protocol, and coding guidelines
+description: Core coding and workflow standards for MeiMusic
+alwaysApply: true
 ---
 
 # Project Rules
 
-## Core Guidelines
+## Product and UX
 - **UI language**: All user-facing text (labels, buttons, window titles, tooltips, message boxes) must be in English.
 - **Preserve user's existing choices**: When editing existing UI or code, keep properties and settings the user has already set. Do not overwrite them with the agent's own defaults or preferences unless the user explicitly asks to change them.
+
+## Code and maintainability
 - **No hardcoding**: Use configuration, constants, or data instead of magic values.
-- **Build and Test Allowed, NO Open App**: You are allowed to build and test the code to verify your changes, but explicitly NEVER launch or open the application window, as the user will handle that manually. Provide the code changes and verify they compile/test successfully.
+- **Comments should be concise and useful**: Add comments only where logic is non-obvious, and keep them intent-focused.
+- **Avoid cosmetic-only churn**: Do not perform broad formatting or style-only refactors unless explicitly requested.
+
+## Execution safety
+- **Build and Test Allowed, NO Open App**: Build/test is allowed, but NEVER launch or open the application window automatically.
+- **Locating Files**: If a specific file/resource location is unclear, ask for clarification before broad searching.
+- **Cleanup Temporary Files**: Remove temporary logs and scratch artifacts before finishing.
+
+## Response format
+- **Changed files must include line references**: When returning updated files, list what was changed/implemented in each file and include the affected line number(s) or line range(s).
+- **Readable per-file layout**: For each changed file, put the file reference on its own line and put the explanation on a separate next line (do not combine them into one long sentence).
+- **Clickable path format**: Use clickable file paths in backticks (for example `Mei Music/Views/MainWindow.xaml.cs`) and list line numbers or ranges as plain text on a separate line.
+- **Use bullet points**: Present changed-file feedback as bullet points for easier scanning.
+

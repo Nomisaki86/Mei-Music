@@ -96,7 +96,7 @@
                                        SnapsToDevicePixels="True"
                                        UseLayoutRounding="True">
                                 <Rectangle.OpacityMask>
-                                    <ImageBrush ImageSource="pack://application:,,,/Resources/Images/music-player.png"
+                                    <ImageBrush ImageSource="/Resources/Images/music-player.png"
                                                 Stretch="Uniform"
                                                 RenderOptions.BitmapScalingMode="Fant"/>
                                 </Rectangle.OpacityMask>
@@ -126,7 +126,7 @@
                                     <ScaleTransform ScaleX="0.92" ScaleY="0.92"/>
                                 </Rectangle.RenderTransform>
                                 <Rectangle.OpacityMask>
-                                    <ImageBrush ImageSource="pack://application:,,,/Resources/Images/heart-filled.png"
+                                    <ImageBrush ImageSource="/Resources/Images/heart-filled.png"
                                                 Stretch="Uniform"
                                                 RenderOptions.BitmapScalingMode="Fant"/>
                                 </Rectangle.OpacityMask>
@@ -173,7 +173,7 @@
                                                                    RenderOptions.BitmapScalingMode="Fant"
                                                                    SnapsToDevicePixels="True">
                                                             <Rectangle.OpacityMask>
-                                                                <ImageBrush ImageSource="pack://application:,,,/Resources/Images/arrow-up.png"
+                                                                <ImageBrush ImageSource="/Resources/Images/arrow-up.png"
                                                                             Stretch="Uniform"
                                                                             RenderOptions.BitmapScalingMode="Fant"/>
                                                             </Rectangle.OpacityMask>
@@ -185,7 +185,7 @@
                                                         <Setter TargetName="PlaylistsArrowIcon"
                                                                 Property="OpacityMask">
                                                             <Setter.Value>
-                                                                <ImageBrush ImageSource="pack://application:,,,/Resources/Images/arrow-down.png"
+                                                                <ImageBrush ImageSource="/Resources/Images/arrow-down.png"
                                                                             Stretch="Uniform"
                                                                             RenderOptions.BitmapScalingMode="Fant"/>
                                                             </Setter.Value>
@@ -384,21 +384,6 @@
                                 </Border>
                             </Popup>
                             
-                            <!-- Song Context Menu Popup -->
-                            <Popup x:Name="SongContextMenuPopup"
-                                   AllowsTransparency="True"
-                                   Placement="Bottom"
-                                   HorizontalOffset="-10"
-                                   VerticalOffset="-10"
-                                   StaysOpen="False">
-                                <Border Background="Transparent" Padding="10">
-                                    <local:SongContextMenuCard x:Name="SongContextMenu"
-                                                               AddRequested="SongContextMenu_AddRequested"
-                                                               RenameRequested="SongContextMenu_RenameRequested"
-                                                               OpenFolderRequested="SongContextMenu_OpenFolderRequested"
-                                                               DeleteRequested="SongContextMenu_DeleteRequested"/>
-                                </Border>
-                            </Popup>
                         </Grid>
 
                         <Grid x:Name="SongPanelScrollScope"
@@ -440,6 +425,7 @@
                                       VirtualizingStackPanel.IsVirtualizing="True"
                                       VirtualizingStackPanel.VirtualizationMode="Recycling"
                                       SelectionChanged="PlaySelectedSong"
+                                      PreviewMouseLeftButtonDown="UploadedSongList_PreviewMouseLeftButtonDown"
                                       PreviewMouseRightButtonDown="UploadedSongList_PreviewMouseRightButtonDown"
                                       PreviewMouseRightButtonUp="UploadedSongList_PreviewMouseRightButtonUp"
                                       ScrollViewer.ScrollChanged="UploadedSongList_ScrollChanged"
@@ -498,7 +484,7 @@
             <Grid Grid.Row="1" Grid.ColumnSpan="3" Height="68" Background="#FFECEFF1">
                 <Grid Margin="0,10">
                     <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="220"/>
+                        <ColumnDefinition Width="120"/>
                         <ColumnDefinition Width="Auto"/>
                         <ColumnDefinition Width="Auto"/>
                         <ColumnDefinition Width="Auto"/>
@@ -512,17 +498,20 @@
                             Padding="10,6"
                             VerticalAlignment="Center"
                             CornerRadius="8"
-                            Background="#FFF5F7FA"
-                            BorderBrush="#FFD8DEE6"
-                            BorderThickness="1">
+                            Background="Transparent"
+                            BorderBrush="Transparent"
+                            BorderThickness="0">
                         <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                             <TextBlock Text="♪"
                                        FontSize="12"
                                        Foreground="#5B6472"
                                        VerticalAlignment="Center"/>
+                            
+                            <!--Text Content limit-->
                             <TextBlock Margin="6,0,0,0"
-                                       Width="180"
+                                       MaxWidth="200"
                                        TextTrimming="CharacterEllipsis"
+                                       Background="Transparent"
                                        Foreground="#3B4554"
                                        FontSize="12.5"
                                        FontWeight="SemiBold"
@@ -536,7 +525,7 @@
                             x:Name="PreviousSongButton"
                             Click="PreviousSongClicked"
                             Style="{StaticResource TransportControlButtonStyle}">
-                        <Image Source="pack://application:,,,/Resources/Images/previous_button.png" Width="45" Height="45"/>
+                        <Image Source="/Resources/Images/previous_button.png" Width="45" Height="45"/>
                     </Button>
 
                     <!-- Stop Song Button-->
@@ -546,7 +535,7 @@
                             Margin="2,0,2,0"
                             RenderOptions.BitmapScalingMode="Fant"
                             HorizontalAlignment="Left" Style="{StaticResource TransportControlButtonStyle}">
-                        <Image Source="pack://application:,,,/Resources/Images/pause_button.png" Width="35" Height="35"/>
+                        <Image Source="/Resources/Images/pause_button.png" Width="35" Height="35"/>
                     </Button>
 
                     <!-- Next Song Button-->
@@ -554,7 +543,7 @@
                             x:Name="NextSongButton"
                             Click="NextSongClicked"
                             Style="{StaticResource TransportControlButtonStyle}">
-                        <Image Source="pack://application:,,,/Resources/Images/next_button.png" Width="45" Height="45"/>
+                        <Image Source="/Resources/Images/next_button.png" Width="45" Height="45"/>
                     </Button>
 
                     <Grid Grid.Column="4" VerticalAlignment="Center" HorizontalAlignment="Stretch">
@@ -624,13 +613,22 @@
             </Border>
         </Grid>
 
-        <!-- Custom Playlist Context Menu Popup -->
-        <!-- Uses a transparent dismiss-layer behind the card so any click outside closes it -->
+        <!-- Song context menu overlay -->
+        <Grid x:Name="SongContextMenuOverlay"
+              Style="{StaticResource ContextMenuCardOverlayHostStyle}">
+            <local:SongContextMenuCard x:Name="SongContextMenu"
+                                       HorizontalAlignment="Left"
+                                       VerticalAlignment="Top"
+                                       AddRequested="SongContextMenu_AddRequested"
+                                       VolumeRequested="SongContextMenu_VolumeRequested"
+                                       RenameRequested="SongContextMenu_RenameRequested"
+                                       OpenFolderRequested="SongContextMenu_OpenFolderRequested"
+                                       DeleteRequested="SongContextMenu_DeleteRequested"/>
+        </Grid>
+
+        <!-- Playlist context menu overlay -->
         <Grid x:Name="PlaylistContextMenuOverlay"
-              Grid.Row="1" Grid.RowSpan="2"
-              Visibility="Collapsed"
-              Panel.ZIndex="200"
-              Background="{x:Null}">
+              Style="{StaticResource ContextMenuCardOverlayHostStyle}">
 
             <!-- Extracted UserControl; positioned via Margin set in code-behind -->
             <local:PlaylistContextMenuCard x:Name="PlaylistContextMenuCard"

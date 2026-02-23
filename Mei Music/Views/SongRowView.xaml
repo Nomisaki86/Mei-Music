@@ -155,10 +155,25 @@
                 </MultiDataTrigger>
             </Style.Triggers>
         </Style>
+
+        <!-- Keeps row action icons near the title hidden until the row is active. -->
+        <Style x:Key="SongRowHoverActionButtonStyle"
+               TargetType="Button"
+               BasedOn="{StaticResource SongItemActionButtonStyle}">
+            <Setter Property="Opacity" Value="0"/>
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding IsMouseOver, RelativeSource={RelativeSource AncestorType=ListViewItem}}" Value="True">
+                    <Setter Property="Opacity" Value="1"/>
+                </DataTrigger>
+                <DataTrigger Binding="{Binding IsSelected, RelativeSource={RelativeSource AncestorType=ListViewItem}}" Value="True">
+                    <Setter Property="Opacity" Value="1"/>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
     </UserControl.Resources>
 
     <!-- Column structure is shared by header and rows through SongColumnLayout bindings. -->
-    <Grid Margin="15,6,15,6">
+    <Grid Margin="15,8,15,8">
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="{Binding ColumnLayout.IndexWidth, ElementName=Root}"/>
             <ColumnDefinition Width="{Binding ColumnLayout.TitleWidth, ElementName=Root}"/>
@@ -261,14 +276,14 @@
                        SnapsToDevicePixels="True">
                     <Image.Style>
                         <Style TargetType="Image">
-                            <Setter Property="Source" Value="pack://application:,,,/Resources/Images/SongRow/play.png"/>
+                            <Setter Property="Source" Value="/Resources/Images/SongRow/play.png"/>
                             <Style.Triggers>
                                 <MultiDataTrigger>
                                     <MultiDataTrigger.Conditions>
                                         <Condition Binding="{Binding Song.IsCurrent, ElementName=Root}" Value="True"/>
                                         <Condition Binding="{Binding DataContext.IsPlaying, RelativeSource={RelativeSource AncestorType=Window}}" Value="True"/>
                                     </MultiDataTrigger.Conditions>
-                                    <Setter Property="Source" Value="pack://application:,,,/Resources/Images/SongRow/pause.png"/>
+                                    <Setter Property="Source" Value="/Resources/Images/SongRow/pause.png"/>
                                 </MultiDataTrigger>
                             </Style.Triggers>
                         </Style>
@@ -286,56 +301,47 @@
                    HorizontalAlignment="Left"
                    Style="{StaticResource HeaderOnlyElementStyle}"/>
 
-        <Grid Grid.Column="1" Style="{StaticResource DataOnlyElementStyle}" Background="Transparent">
+        <Grid Grid.Column="1" Style="{StaticResource DataOnlyElementStyle}">
             <TextBlock Text="{Binding Song.Name, ElementName=Root}"
                        VerticalAlignment="Center"
                        HorizontalAlignment="Left"
                        Margin="8,0,26,0"
                        TextAlignment="Left"
-                       Background="Transparent"
-                       MaxWidth="380"
                        FontSize="13.5"
                        TextTrimming="CharacterEllipsis"/>
 
-            <Button ToolTip="Options"
-                    Click="OptionsButton_Click"
-                    HorizontalAlignment="Right"
-                    Margin="0,0,10,0"
-                    VerticalAlignment="Center">
-                <Button.Style>
-                    <Style TargetType="Button" BasedOn="{StaticResource SongItemActionButtonStyle}">
-                        <Setter Property="Opacity" Value="0"/>
-                        <Style.Triggers>
-                            <DataTrigger Binding="{Binding IsMouseOver, RelativeSource={RelativeSource AncestorType=ListViewItem}}" Value="True">
-                                <Setter Property="Opacity" Value="1"/>
-                            </DataTrigger>
-                        </Style.Triggers>
-                    </Style>
-                </Button.Style>
-                <Grid Width="16" Height="16" RenderTransformOrigin="0.5,0.5">
-                    <Grid.RenderTransform>
-                        <ScaleTransform ScaleX="0.9" ScaleY="0.9"/>
-                    </Grid.RenderTransform>
-                    <Rectangle RenderOptions.BitmapScalingMode="Fant"
-                               SnapsToDevicePixels="True"
-                               Fill="{StaticResource SidebarGlyphBrush}">
-                        <Rectangle.OpacityMask>
-                            <ImageBrush ImageSource="pack://application:,,,/Resources/Images/option.png"
-                                        Stretch="Uniform"
-                                        RenderOptions.BitmapScalingMode="Fant"/>
-                        </Rectangle.OpacityMask>
-                        <Rectangle.Style>
-                            <Style TargetType="Rectangle">
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding IsMouseOver, RelativeSource={RelativeSource AncestorType=Button}}" Value="True">
-                                        <Setter Property="Fill" Value="{StaticResource SidebarGlyphHoverBrush}"/>
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </Rectangle.Style>
-                    </Rectangle>
-                </Grid>
-            </Button>
+            <StackPanel Orientation="Horizontal"
+                        HorizontalAlignment="Right"
+                        Margin="0,0,10,0"
+                        VerticalAlignment="Center">
+                <Button ToolTip="Options"
+                        Click="OptionsButton_Click"
+                        Style="{StaticResource SongRowHoverActionButtonStyle}">
+                    <Grid Width="16" Height="16" RenderTransformOrigin="0.5,0.5">
+                        <Grid.RenderTransform>
+                            <ScaleTransform ScaleX="0.9" ScaleY="0.9"/>
+                        </Grid.RenderTransform>
+                        <Rectangle RenderOptions.BitmapScalingMode="Fant"
+                                   SnapsToDevicePixels="True"
+                                   Fill="{StaticResource SidebarGlyphBrush}">
+                            <Rectangle.OpacityMask>
+                                <ImageBrush ImageSource="/Resources/Images/option.png"
+                                            Stretch="Uniform"
+                                            RenderOptions.BitmapScalingMode="Fant"/>
+                            </Rectangle.OpacityMask>
+                            <Rectangle.Style>
+                                <Style TargetType="Rectangle">
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsMouseOver, RelativeSource={RelativeSource AncestorType=Button}}" Value="True">
+                                            <Setter Property="Fill" Value="{StaticResource SidebarGlyphHoverBrush}"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Rectangle.Style>
+                        </Rectangle>
+                    </Grid>
+                </Button>
+            </StackPanel>
         </Grid>
 
         <TextBlock Grid.Column="2"
@@ -366,7 +372,7 @@
                     </Grid.RenderTransform>
                     <Rectangle RenderOptions.BitmapScalingMode="Fant" SnapsToDevicePixels="True">
                         <Rectangle.OpacityMask>
-                            <ImageBrush ImageSource="pack://application:,,,/Resources/Images/heart.png" Stretch="Uniform" RenderOptions.BitmapScalingMode="Fant"/>
+                            <ImageBrush ImageSource="/Resources/Images/heart.png" Stretch="Uniform" RenderOptions.BitmapScalingMode="Fant"/>
                         </Rectangle.OpacityMask>
                         <Rectangle.Style>
                             <Style TargetType="Rectangle">
@@ -385,7 +391,7 @@
                     </Rectangle>
                     <Rectangle RenderOptions.BitmapScalingMode="Fant" SnapsToDevicePixels="True">
                         <Rectangle.OpacityMask>
-                            <ImageBrush ImageSource="pack://application:,,,/Resources/Images/heart-filled.png" Stretch="Uniform" RenderOptions.BitmapScalingMode="Fant"/>
+                            <ImageBrush ImageSource="/Resources/Images/heart-filled.png" Stretch="Uniform" RenderOptions.BitmapScalingMode="Fant"/>
                         </Rectangle.OpacityMask>
                         <Rectangle.Style>
                             <Style TargetType="Rectangle">
@@ -449,13 +455,5 @@
                    TextAlignment="Center"
                    Style="{StaticResource DataOnlyElementStyle}"/>
 
-        <Grid Grid.Column="4" Margin="8,0,0,0" Style="{StaticResource DataOnlyElementStyle}">
-            <Button ToolTip="Adjust volume"
-                    Content="🔊"
-                    HorizontalAlignment="Left"
-                    Command="{Binding DataContext.SongVolumeCommand, RelativeSource={RelativeSource AncestorType=Window}}"
-                    CommandParameter="{Binding Song, ElementName=Root}"
-                    Style="{StaticResource SongItemActionButtonStyle}"/>
-        </Grid>
     </Grid>
 </UserControl>

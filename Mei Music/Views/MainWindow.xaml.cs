@@ -84,8 +84,17 @@ namespace Mei_Music
         /// </summary>
         public SongColumnLayoutState SongColumnLayout { get; } = new SongColumnLayoutState();
 
+        /// <summary>
+        /// App-specific threshold for considering two row clicks a double click.
+        /// </summary>
+        private const int SongRowDoubleClickThresholdMs = 300;
+
         /// <summary>List used for Prev/Next and auto-next; set when user starts playing from the list.</summary>
         private IList? _playbackList;
+        /// <summary>Timestamp (Environment.TickCount64) of last left-click on a playable song row.</summary>
+        private long _lastSongRowClickTimestampMs;
+        /// <summary>Song from the most recent left-click used for custom double-click detection.</summary>
+        private Song? _lastSongRowClickedSong;
         /// <summary>Saved vertical scroll offset for the All (Songs) view when switching tabs.</summary>
         private double _allViewScrollOffset;
         /// <summary>Saved vertical scroll offset for the Liked view when switching tabs.</summary>
@@ -346,9 +355,87 @@ namespace Mei_Music
         }
 
         /// <summary>
-        /// Playlist currently targeted by the playlist context menu popup.
+        /// Playlist currently targeted by the playlist context menu card.
         /// </summary>
         private CreatedPlaylist? _contextMenuTargetPlaylist;
+
+        /// <summary>
+        /// Song currently targeted by the song context menu card.
+        /// </summary>
+        private Song? _contextMenuTargetSong;
+
+        // Pointer Gap
+        private const double ContextMenuPointerGap = 15;
+        private const double ContextMenuWindowPadding = 8;
+        private static readonly Size PlaylistContextMenuFallbackSize = new Size(180, 60);
+        private static readonly Size SongContextMenuFallbackSize = new Size(190, 250);
+
+        /// <summary>
+        /// Shared host helper used by both song/playlist context cards.
+        /// </summary>
+        private static void ShowContextMenuCard(Grid overlay, FrameworkElement card, double left, double top)
+        {
+            card.Margin = new Thickness(left, top, 0, 0);
+            overlay.Visibility = Visibility.Visible;
+        }
+
+        /// <summary>
+        /// Opens any context menu card near an anchor point with shared edge-aware placement logic.
+        /// </summary>
+        private void OpenContextMenuCardAtWindowPoint(
+            Grid overlay,
+            FrameworkElement card,
+            Point anchorInWindow,
+            Size cardSize,
+            double pointerGap,
+            double windowPadding)
+        {
+            double overlayWidth = overlay.ActualWidth > 0 ? overlay.ActualWidth : ActualWidth;
+            double overlayHeight = overlay.ActualHeight > 0 ? overlay.ActualHeight : ActualHeight;
+
+            double availableRight = Math.Max(0, overlayWidth - anchorInWindow.X);
+            double availableLeft = Math.Max(0, anchorInWindow.X);
+            double availableBottom = Math.Max(0, overlayHeight - anchorInWindow.Y);
+            double availableTop = Math.Max(0, anchorInWindow.Y);
+
+            bool openRight = availableRight >= cardSize.Width + pointerGap || availableRight >= availableLeft;
+            bool openDown = availableBottom >= cardSize.Height + pointerGap || availableBottom >= availableTop;
+
+            double left = anchorInWindow.X + (openRight ? pointerGap : -(cardSize.Width + pointerGap));
+            double top = anchorInWindow.Y + (openDown ? pointerGap : -(cardSize.Height + pointerGap));
+
+            double maxLeft = Math.Max(windowPadding, overlayWidth - cardSize.Width - windowPadding);
+            double maxTop = Math.Max(windowPadding, overlayHeight - cardSize.Height - windowPadding);
+
+            left = Math.Clamp(left, windowPadding, maxLeft);
+            top = Math.Clamp(top, windowPadding, maxTop);
+
+            ShowContextMenuCard(overlay, card, left, top);
+        }
+
+        /// <summary>
+        /// Hides song context menu overlay and optionally clears targeted song.
+        /// </summary>
+        private void CloseSongContextMenu(bool clearTarget = false)
+        {
+            SongContextMenuOverlay.Visibility = Visibility.Collapsed;
+            if (clearTarget)
+            {
+                _contextMenuTargetSong = null;
+            }
+        }
+
+        /// <summary>
+        /// Hides playlist context menu overlay and optionally clears targeted playlist.
+        /// </summary>
+        private void ClosePlaylistContextMenu(bool clearTarget = true)
+        {
+            PlaylistContextMenuOverlay.Visibility = Visibility.Collapsed;
+            if (clearTarget)
+            {
+                _contextMenuTargetPlaylist = null;
+            }
+        }
 
         /// <summary>
         /// Opens playlist context menu near the right-click position.
@@ -359,33 +446,19 @@ namespace Mei_Music
             if (btn.DataContext is not CreatedPlaylist playlist) return;
 
             _contextMenuTargetPlaylist = playlist;
+            CloseSongContextMenu(clearTarget: true);
 
-            // Position the card in the overlay coordinate space
-            Point clickPos = e.GetPosition(PlaylistContextMenuOverlay);
-            double cardWidth = PlaylistContextMenuCard.ActualWidth > 0 ? PlaylistContextMenuCard.ActualWidth : 180;
-            double cardHeight = PlaylistContextMenuCard.ActualHeight > 0 ? PlaylistContextMenuCard.ActualHeight : 60;
-
-            // Open top-right of cursor
-            double left = clickPos.X + 4;
-            double top = clickPos.Y - cardHeight - 4;
-
-            // Clamp so it doesn't leave the window
-            left = Math.Min(left, ActualWidth - cardWidth - 8);
-            top = Math.Max(top, 8);
-
-            PlaylistContextMenuCard.Margin = new Thickness(left, top, 0, 0);
-            PlaylistContextMenuOverlay.Visibility = Visibility.Visible;
+            Point anchorPoint = e.GetPosition(this);
+            Size popupSize = GetPlaylistContextMenuSize();
+            OpenContextMenuCardAtWindowPoint(
+                PlaylistContextMenuOverlay,
+                PlaylistContextMenuCard,
+                anchorPoint,
+                popupSize,
+                ContextMenuPointerGap,
+                ContextMenuWindowPadding);
 
             e.Handled = true;
-        }
-
-        /// <summary>
-        /// Dismisses playlist context menu overlay.
-        /// </summary>
-        private void PlaylistContextMenuDismiss_Click(object sender, MouseButtonEventArgs e)
-        {
-            PlaylistContextMenuOverlay.Visibility = Visibility.Collapsed;
-            _contextMenuTargetPlaylist = null;
         }
 
         /// <summary>
@@ -393,11 +466,9 @@ namespace Mei_Music
         /// </summary>
         private void ContextMenuDeletePlaylist_Click(object? sender, EventArgs e)
         {
-            PlaylistContextMenuOverlay.Visibility = Visibility.Collapsed;
-
             if (_contextMenuTargetPlaylist == null) return;
             var playlist = _contextMenuTargetPlaylist;
-            _contextMenuTargetPlaylist = null;
+            ClosePlaylistContextMenu();
 
             ViewModel.DeletePlaylist(playlist);
 
@@ -408,42 +479,109 @@ namespace Mei_Music
         }
 
         /// <summary>
-        /// Song currently targeted by the song context menu popup.
+        /// Measures current playlist context card and returns best-known size for edge-aware placement.
         /// </summary>
-        private Song? _contextMenuTargetSong;
+        private Size GetPlaylistContextMenuSize()
+        {
+            if (PlaylistContextMenuCard.ActualWidth > 0 && PlaylistContextMenuCard.ActualHeight > 0)
+            {
+                return new Size(PlaylistContextMenuCard.ActualWidth, PlaylistContextMenuCard.ActualHeight);
+            }
+
+            PlaylistContextMenuCard.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+            Size desired = PlaylistContextMenuCard.DesiredSize;
+            if (desired.Width > 0 && desired.Height > 0)
+            {
+                return desired;
+            }
+
+            return PlaylistContextMenuFallbackSize;
+        }
 
         /// <summary>
-        /// Opens the song context popup anchored to the song-row option button.
+        /// Selects a song row without triggering playback side effects.
+        /// </summary>
+        private void SelectSongForContextMenu(Song song)
+        {
+            _suppressSelectionChanged = true;
+            try
+            {
+                UploadedSongList.SelectedItem = song;
+            }
+            finally
+            {
+                _suppressSelectionChanged = false;
+            }
+        }
+
+        /// <summary>
+        /// Measures current song context card and returns best-known size for edge-aware placement.
+        /// </summary>
+        private Size GetSongContextMenuSize()
+        {
+            // Actual size is stable and does not include positional margin offsets.
+            // Using DesiredSize after we set Margin(left, top, 0, 0) can inflate width/height.
+            if (SongContextMenu.ActualWidth > 0 && SongContextMenu.ActualHeight > 0)
+            {
+                return new Size(SongContextMenu.ActualWidth, SongContextMenu.ActualHeight);
+            }
+
+            SongContextMenu.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+            Size desired = SongContextMenu.DesiredSize;
+            if (desired.Width > 0 && desired.Height > 0)
+            {
+                return desired;
+            }
+
+            return SongContextMenuFallbackSize;
+        }
+
+        /// <summary>
+        /// Opens song context menu near an anchor point with smart edge-aware direction.
+        /// Prefers lower-right placement with breathing room, then flips when needed.
+        /// </summary>
+        private void OpenSongContextMenuAtWindowPoint(Point anchorInWindow, FrameworkElement? focusTarget)
+        {
+            ClosePlaylistContextMenu();
+            CloseSongContextMenu();
+
+            Size popupSize = GetSongContextMenuSize();
+            OpenContextMenuCardAtWindowPoint(
+                SongContextMenuOverlay,
+                SongContextMenu,
+                anchorInWindow,
+                popupSize,
+                ContextMenuPointerGap,
+                ContextMenuWindowPadding);
+
+            focusTarget?.Focus();
+        }
+
+        /// <summary>
+        /// Opens the song context card anchored to the song-row option button.
         /// </summary>
         private void SongOptionButton_Click(object sender, RoutedEventArgs e)
         {
             if (sender is Button btn && btn.DataContext is Song song)
             {
+                SelectSongForContextMenu(song);
                 _contextMenuTargetSong = song;
-                SongContextMenuPopup.Placement = PlacementMode.Bottom;
-                SongContextMenuPopup.PlacementTarget = btn;
-                SongContextMenuPopup.IsOpen = true;
-
-                // Optional: Auto-dismiss when clicking elsewhere natively handled by StaysOpen="False"
-                // But WPF sometimes needs explicit focus to make StaysOpen work
-                btn.Focus();
+                Point anchorPoint = btn.TranslatePoint(new Point(btn.ActualWidth, btn.ActualHeight), this);
+                OpenSongContextMenuAtWindowPoint(anchorPoint, btn);
             }
         }
 
         /// <summary>
-        /// Opens song context popup from <see cref="SongRowView"/> options event.
+        /// Opens song context card from <see cref="SongRowView"/> options event.
         /// </summary>
         private void SongRow_OptionsRequested(object? sender, SongOptionsRequestedEventArgs e)
         {
+            SelectSongForContextMenu(e.Song);
             _contextMenuTargetSong = e.Song;
-            SongContextMenuPopup.Placement = PlacementMode.Bottom;
-            SongContextMenuPopup.PlacementTarget = e.AnchorElement ?? UploadedSongList;
-            SongContextMenuPopup.IsOpen = true;
-
-            if (e.AnchorElement != null)
-            {
-                e.AnchorElement.Focus();
-            }
+            Point anchorPoint = e.AnchorElement != null
+                ? e.AnchorElement.TranslatePoint(new Point(e.AnchorElement.ActualWidth, e.AnchorElement.ActualHeight), this)
+                : Mouse.GetPosition(this);
+            OpenSongContextMenuAtWindowPoint(anchorPoint, e.AnchorElement ?? UploadedSongList);
         }
 
         /// <summary>
@@ -509,7 +647,7 @@ namespace Mei_Music
         }
 
         /// <summary>
-        /// Opens song context popup at mouse pointer when right click is released on a song row.
+        /// Opens song context card at mouse pointer when right click is released on a song row.
         /// </summary>
         private void UploadedSongList_PreviewMouseRightButtonUp(object sender, MouseButtonEventArgs e)
         {
@@ -525,21 +663,33 @@ namespace Mei_Music
             }
 
             _contextMenuTargetSong = song;
-            SongContextMenuPopup.Placement = PlacementMode.MousePoint;
-            SongContextMenuPopup.PlacementTarget = UploadedSongList;
-            SongContextMenuPopup.IsOpen = true;
-            UploadedSongList.Focus();
+            Point anchorPoint = e.GetPosition(this);
+            OpenSongContextMenuAtWindowPoint(anchorPoint, UploadedSongList);
             e.Handled = true;
         }
 
         /// <summary>
         /// Placeholder action for future "Add to Playlist" workflow.
+        /// Invoked by the song options context menu action.
         /// </summary>
         private void SongContextMenu_AddRequested(object? sender, EventArgs e)
         {
-            SongContextMenuPopup.IsOpen = false;
+            CloseSongContextMenu(clearTarget: true);
             // Existing logic or placeholder for Add to Playlist
             MessageBox.Show("Add to Playlist feature coming soon!", "Feature", MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+
+        /// <summary>
+        /// Opens per-song volume editor for the song currently targeted by context menu.
+        /// </summary>
+        private void SongContextMenu_VolumeRequested(object? sender, EventArgs e)
+        {
+            Song? targetSong = _contextMenuTargetSong;
+            CloseSongContextMenu(clearTarget: true);
+            if (targetSong != null)
+            {
+                ViewModel.SongVolumeCommand.Execute(targetSong);
+            }
         }
 
         /// <summary>
@@ -547,10 +697,11 @@ namespace Mei_Music
         /// </summary>
         private void SongContextMenu_RenameRequested(object? sender, EventArgs e)
         {
-            SongContextMenuPopup.IsOpen = false;
-            if (_contextMenuTargetSong != null)
+            Song? targetSong = _contextMenuTargetSong;
+            CloseSongContextMenu(clearTarget: true);
+            if (targetSong != null)
             {
-                ViewModel.RenameSongCommand.Execute(_contextMenuTargetSong);
+                ViewModel.RenameSongCommand.Execute(targetSong);
             }
         }
 
@@ -559,10 +710,11 @@ namespace Mei_Music
         /// </summary>
         private void SongContextMenu_OpenFolderRequested(object? sender, EventArgs e)
         {
-            SongContextMenuPopup.IsOpen = false;
-            if (_contextMenuTargetSong != null)
+            Song? targetSong = _contextMenuTargetSong;
+            CloseSongContextMenu(clearTarget: true);
+            if (targetSong != null)
             {
-                ViewModel.OpenFolderCommand.Execute(_contextMenuTargetSong);
+                ViewModel.OpenFolderCommand.Execute(targetSong);
             }
         }
 
@@ -571,10 +723,11 @@ namespace Mei_Music
         /// </summary>
         private void SongContextMenu_DeleteRequested(object? sender, EventArgs e)
         {
-            SongContextMenuPopup.IsOpen = false;
-            if (_contextMenuTargetSong != null)
+            Song? targetSong = _contextMenuTargetSong;
+            CloseSongContextMenu(clearTarget: true);
+            if (targetSong != null)
             {
-                ViewModel.DeleteSongCommand.Execute(_contextMenuTargetSong);
+                ViewModel.DeleteSongCommand.Execute(targetSong);
             }
         }
 
@@ -1234,6 +1387,62 @@ namespace Mei_Music
         }
 
         /// <summary>
+        /// Handles app-level double-click detection for song rows.
+        /// Double-click toggles play/pause for the current song, or starts a different song.
+        /// </summary>
+        private void UploadedSongList_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            if (e.OriginalSource is not DependencyObject source)
+            {
+                return;
+            }
+
+            // Keep row action buttons (like/options/play-pause) in control of their own interactions.
+            if (FindVisualParent<Button>(source) != null)
+            {
+                _lastSongRowClickedSong = null;
+                return;
+            }
+
+            var listViewItem = FindVisualParent<ListViewItem>(source);
+            if (listViewItem?.DataContext is not Song song)
+            {
+                _lastSongRowClickedSong = null;
+                return;
+            }
+
+            long nowMs = Environment.TickCount64;
+            bool sameSongAsPrevious = ReferenceEquals(_lastSongRowClickedSong, song);
+            bool withinThreshold = nowMs - _lastSongRowClickTimestampMs <= SongRowDoubleClickThresholdMs;
+
+            _lastSongRowClickedSong = song;
+            _lastSongRowClickTimestampMs = nowMs;
+
+            if (!sameSongAsPrevious || !withinThreshold)
+            {
+                return;
+            }
+
+            _playbackList = GetCurrentSongList() ?? ViewModel.Songs;
+            bool isCurrentSong = ViewModel.CurrentSong != null
+                && (ReferenceEquals(ViewModel.CurrentSong, song) || ViewModel.CurrentSong.Name == song.Name);
+
+            if (isCurrentSong)
+            {
+                ViewModel.TogglePlay();
+                UpdatePlaybackButtonIcon();
+            }
+            else
+            {
+                PlaySong(song);
+            }
+
+            SaveSongIndex();
+            e.Handled = true;
+            _lastSongRowClickedSong = null;
+        }
+
+        /// <summary>
         /// Finds the nearest visual parent of the requested type.
         /// Used for locating ListViewItem from low-level input events.
         /// </summary>
@@ -1505,19 +1714,26 @@ namespace Mei_Music
 
         //------------------------- Manage Close Drop Down ---------------------------------
         /// <summary>
+        /// Determines whether a context menu overlay should close for the current click.
+        /// </summary>
+        private static bool ShouldDismissContextMenu(Grid overlay, FrameworkElement card)
+        {
+            return overlay.Visibility == Visibility.Visible && !card.IsMouseOver;
+        }
+
+        /// <summary>
         /// Global click handler that dismisses popups/menus when user clicks outside them.
         /// </summary>
         private void OnMainWindowPreviewMouseDown(object sender, MouseButtonEventArgs e)
         {
-            if (SongContextMenuPopup.IsOpen && !SongContextMenu.IsMouseOver)
+            if (ShouldDismissContextMenu(SongContextMenuOverlay, SongContextMenu))
             {
-                SongContextMenuPopup.IsOpen = false;
+                CloseSongContextMenu(clearTarget: true);
             }
 
-            if (PlaylistContextMenuOverlay.Visibility == Visibility.Visible && !PlaylistContextMenuCard.IsMouseOver)
+            if (ShouldDismissContextMenu(PlaylistContextMenuOverlay, PlaylistContextMenuCard))
             {
-                PlaylistContextMenuOverlay.Visibility = Visibility.Collapsed;
-                _contextMenuTargetPlaylist = null;
+                ClosePlaylistContextMenu();
             }
 
             // Close the Popup if the click is outside the Popup
@@ -1538,6 +1754,9 @@ namespace Mei_Music
         /// </summary>
         private void Window_Deactivated(object sender, EventArgs e)
         {
+            CloseSongContextMenu(clearTarget: true);
+            ClosePlaylistContextMenu();
+
             // Close the dropdown if the application loses focus
             if (PlusPopupMenu.IsOpen)
             {
@@ -1601,8 +1820,8 @@ namespace Mei_Music
                     snapshot.IndexWidth,
                     snapshot.OptionsWidth,
                     snapshot.LikedWidth,
-                    snapshot.VolumeWidth,
-                    snapshot.TimeWidth);
+                    Math.Min(snapshot.VolumeWidth, SongColumnLayoutState.VolumeDefaultWidth),
+                    Math.Min(snapshot.TimeWidth, SongColumnLayoutState.TimeDefaultWidth));
             }
             catch
             {
@@ -1712,11 +1931,8 @@ namespace Mei_Music
         /// </summary>
         private void TitleBar_MouseDown(object sender, MouseButtonEventArgs e)
         {
-            // Dismiss the custom context menu if open
-            if (PlaylistContextMenuOverlay.Visibility == Visibility.Visible)
-            {
-                PlaylistContextMenuOverlay.Visibility = Visibility.Collapsed;
-            }
+            CloseSongContextMenu(clearTarget: true);
+            ClosePlaylistContextMenu();
 
             if (e.ChangedButton == MouseButton.Left)
             {

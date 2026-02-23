@@ -23,6 +23,15 @@
         </Setter>
     </Style>
 
+    <!-- Shared overlay host: keeps all context cards in one click-through layer model. -->
+    <Style x:Key="ContextMenuCardOverlayHostStyle" TargetType="Grid">
+        <Setter Property="Grid.Row" Value="0"/>
+        <Setter Property="Grid.RowSpan" Value="3"/>
+        <Setter Property="Visibility" Value="Collapsed"/>
+        <Setter Property="Panel.ZIndex" Value="200"/>
+        <Setter Property="Background" Value="{x:Null}"/>
+    </Style>
+
     <!-- Standard action-row button style for non-destructive context actions. -->
     <Style x:Key="ContextMenuCardActionButtonStyle" TargetType="Button">
         <Setter Property="Background" Value="Transparent"/>

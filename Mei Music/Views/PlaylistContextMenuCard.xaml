@@ -19,7 +19,7 @@
                 <StackPanel Style="{StaticResource ContextMenuCardRowLayoutStyle}">
                     <Rectangle Style="{StaticResource ContextMenuCardGlyphRectangleStyle}">
                         <Rectangle.OpacityMask>
-                            <ImageBrush ImageSource="pack://application:,,,/Resources/Images/delete.png"
+                            <ImageBrush ImageSource="/Resources/Images/delete.png"
                                         Stretch="Uniform"
                                         RenderOptions.BitmapScalingMode="Fant"/>
                         </Rectangle.OpacityMask>
