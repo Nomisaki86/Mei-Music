@@ -9,18 +9,39 @@ using Mei_Music.Services;
 
 namespace Mei_Music.ViewModels
 {
+    /// <summary>
+    /// Main application view-model.
+    /// Coordinates song library state, playback state, and user commands invoked from the UI.
+    /// </summary>
     public partial class MainViewModel : ObservableObject
     {
+        /// <summary>Service used to persist songs and playlists.</summary>
         private readonly IFileService _fileService;
+
+        /// <summary>Service that provides song ordering strategies.</summary>
         private readonly IPlaylistSortService _playlistSortService;
+
+        /// <summary>Service that controls low-level audio playback.</summary>
         private readonly IAudioPlayerService _audioPlayer;
+
+        /// <summary>Service that opens user dialogs (prompt, confirmation, etc.).</summary>
         private readonly IDialogService _dialogService;
 
+        /// <summary>Path to persisted song metadata JSON.</summary>
         private readonly string _songDataFilePath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Mei Music", "songData.json");
+
+        /// <summary>Path to persisted playlist metadata JSON.</summary>
         private readonly string _playlistsFilePath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Mei Music", "playlists.json");
+
+        /// <summary>Directory where copied playlist icon files are stored.</summary>
         private readonly string _playlistIconsDirectory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Mei Music", "playlist-icons");
+
+        /// <summary>Directory where managed audio files are stored.</summary>
         private readonly string _audioDirectory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Mei Music", "playlist");
 
+        /// <summary>
+        /// Initializes services, collections, and audio event subscriptions.
+        /// </summary>
         public MainViewModel(IFileService fileService, IPlaylistSortService playlistSortService, IAudioPlayerService audioPlayer, IDialogService dialogService)
         {
             _fileService = fileService;
@@ -72,6 +93,9 @@ namespace Mei_Music.ViewModels
 
         // --- Playback Commands ---
 
+        /// <summary>
+        /// Starts playback for the selected song and updates current-song state.
+        /// </summary>
         [RelayCommand]
         public void PlaySong(Song song)
         {
@@ -95,6 +119,10 @@ namespace Mei_Music.ViewModels
             IsPlaying = true;
         }
 
+        /// <summary>
+        /// Toggles pause/resume for currently loaded media.
+        /// If no media is loaded but CurrentSong exists, starts that song.
+        /// </summary>
         [RelayCommand]
         public void TogglePlay()
         {
@@ -117,6 +145,9 @@ namespace Mei_Music.ViewModels
             }
         }
 
+        /// <summary>
+        /// Seeks playback to the requested absolute position (in seconds).
+        /// </summary>
         [RelayCommand]
         public void Seek(double positionSeconds)
         {
@@ -135,6 +166,9 @@ namespace Mei_Music.ViewModels
 
         public event EventHandler? MediaEnded;
 
+        /// <summary>
+        /// Forwards media-ended event to code-behind until navigation logic is fully moved to VM.
+        /// </summary>
         private void OnMediaEnded(object? sender, EventArgs e)
         {
             // Forward event to code-behind for playlist advancing (until that's moved to VM)
@@ -151,6 +185,9 @@ namespace Mei_Music.ViewModels
             PlayProgress = position.TotalSeconds;
         }
 
+        /// <summary>
+        /// Applies the currently playing song's per-song volume to the player engine.
+        /// </summary>
         public void UpdatePlayerVolume()
         {
             if (CurrentSong != null)
@@ -161,6 +198,9 @@ namespace Mei_Music.ViewModels
 
         // --- Song Action Commands ---
 
+        /// <summary>
+        /// Toggles liked status and keeps LikedSongs collection synchronized.
+        /// </summary>
         [RelayCommand]
         public void ToggleLike(Song song)
         {
@@ -178,6 +218,9 @@ namespace Mei_Music.ViewModels
             SaveSongData();
         }
 
+        /// <summary>
+        /// Renames a song in metadata and on disk, preserving track attributes.
+        /// </summary>
         [RelayCommand]
         public void RenameSong(Song song)
         {
@@ -208,7 +251,8 @@ namespace Mei_Music.ViewModels
                         Index = songToReplace.Index,
                         Name = newName,
                         Volume = songToReplace.Volume,
-                        IsLiked = songToReplace.IsLiked
+                        IsLiked = songToReplace.IsLiked,
+                        Duration = songToReplace.Duration
                     };
 
                     Songs.Insert(index, newSongInfo);
@@ -237,6 +281,9 @@ namespace Mei_Music.ViewModels
             }
         }
 
+        /// <summary>
+        /// Deletes a song after confirmation and removes corresponding files from disk.
+        /// </summary>
         [RelayCommand]
         public void DeleteSong(Song song)
         {
@@ -261,6 +308,9 @@ namespace Mei_Music.ViewModels
             }
         }
 
+        /// <summary>
+        /// Opens File Explorer and highlights the backing audio file for the song.
+        /// </summary>
         [RelayCommand]
         public void OpenFolder(Song song)
         {
@@ -285,6 +335,9 @@ namespace Mei_Music.ViewModels
             }
         }
 
+        /// <summary>
+        /// Opens per-song volume dialog and persists updated volume.
+        /// </summary>
         [RelayCommand]
         public void SongVolume(Song song)
         {
@@ -303,6 +356,9 @@ namespace Mei_Music.ViewModels
 
         // --- Data Management & Refresh ---
 
+        /// <summary>
+        /// Re-indexes songs and persists song metadata.
+        /// </summary>
         public void SaveSongData()
         {
             UpdateSongIndexes();
@@ -310,12 +366,18 @@ namespace Mei_Music.ViewModels
             catch (Exception ex) { _dialogService.ShowMessage($"Error saving song data: {ex.Message}"); }
         }
 
+        /// <summary>
+        /// Persists created playlists.
+        /// </summary>
         public void SaveCreatedPlaylists()
         {
             try { _fileService.SavePlaylists(_playlistsFilePath, CreatedPlaylists.ToList()); }
             catch (Exception ex) { _dialogService.ShowMessage($"Error saving playlists: {ex.Message}"); }
         }
 
+        /// <summary>
+        /// Updates display index strings (01, 02, ...) based on current Songs order.
+        /// </summary>
         public void UpdateSongIndexes()
         {
             for (int i = 0; i < Songs.Count; i++)
@@ -324,11 +386,17 @@ namespace Mei_Music.ViewModels
             }
         }
 
+        /// <summary>
+        /// Reconciles in-memory song list with files on disk.
+        /// Removes unsupported files, resolves duplicate format cases, deletes stale rows,
+        /// and adds newly detected audio files.
+        /// </summary>
         [RelayCommand]
         public void RefreshSongsInUI()
         {
             bool nonAudioFilesFound = false;
 
+            // 1) Remove non-audio files from managed storage.
             foreach (string filePath in Directory.GetFiles(_audioDirectory))
             {
                 string ext = Path.GetExtension(filePath).ToLower();
@@ -354,6 +422,7 @@ namespace Mei_Music.ViewModels
                 _dialogService.ShowMessage("Some Non-mp3/wav files are detected; they have been moved to the trash bin.");
             }
 
+            // 2) When both .mp3 and .wav exist with same base name, keep .mp3 and recycle .wav.
             var mp3Files = new System.Collections.Generic.HashSet<string>();
             foreach (string filePath in Directory.GetFiles(_audioDirectory))
             {
@@ -381,6 +450,7 @@ namespace Mei_Music.ViewModels
                 }
             }
 
+            // 3) Remove songs whose files were deleted outside the app.
             var filesInFolder = new System.Collections.Generic.HashSet<string>(
                 Directory.GetFiles(_audioDirectory)
                 .Where(f => Path.GetExtension(f).ToLower() == ".mp3" || Path.GetExtension(f).ToLower() == ".wav")
@@ -397,6 +467,7 @@ namespace Mei_Music.ViewModels
                 }
             }
 
+            // 4) Add new files and backfill missing duration metadata.
             foreach (string filePath in Directory.GetFiles(_audioDirectory))
             {
                 string extension = Path.GetExtension(filePath).ToLower();
@@ -405,12 +476,20 @@ namespace Mei_Music.ViewModels
                     string fileName = Path.GetFileNameWithoutExtension(filePath);
                     var existingSong = Songs.FirstOrDefault(s => s.Name == fileName);
 
-                    if (existingSong != null) continue;
+                    if (existingSong != null)
+                    {
+                        if (string.IsNullOrWhiteSpace(existingSong.Duration))
+                        {
+                            existingSong.Duration = GetAudioDuration(filePath);
+                        }
+                        continue;
+                    }
 
                     var newSong = new Song
                     {
                         Name = fileName,
-                        Volume = 50
+                        Volume = 50,
+                        Duration = GetAudioDuration(filePath)
                     };
                     Songs.Add(newSong);
                 }
@@ -418,6 +497,28 @@ namespace Mei_Music.ViewModels
 
             SaveSongData();
         }
+
+        /// <summary>
+        /// Reads audio duration from media metadata.
+        /// Returns an empty string if metadata cannot be read.
+        /// </summary>
+        private static string GetAudioDuration(string filePath)
+        {
+            try
+            {
+                using var tagFile = TagLib.File.Create(filePath);
+                var duration = tagFile.Properties.Duration;
+                return duration.ToString(@"mm\:ss");
+            }
+            catch
+            {
+                return string.Empty;
+            }
+        }
+
+        /// <summary>
+        /// Adds a new playlist to the collection and persists updated playlist data.
+        /// </summary>
         [RelayCommand]
         public void CreatePlaylist(CreatedPlaylist playlist)
         {
@@ -426,6 +527,9 @@ namespace Mei_Music.ViewModels
             SaveCreatedPlaylists();
         }
 
+        /// <summary>
+        /// Deletes a playlist and its icon file (if present), then persists changes.
+        /// </summary>
         [RelayCommand]
         public void DeletePlaylist(CreatedPlaylist playlist)
         {
@@ -440,6 +544,9 @@ namespace Mei_Music.ViewModels
             SaveCreatedPlaylists();
         }
 
+        /// <summary>
+        /// Sorts Songs by the selected strategy and persists the re-ordered list.
+        /// </summary>
         [RelayCommand]
         public void SortPlaylist(string sortType)
         {

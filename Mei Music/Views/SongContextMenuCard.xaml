@@ -1,0 +1,83 @@
+<UserControl x:Class="Mei_Music.SongContextMenuCard"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
+             mc:Ignorable="d">
+    <!--
+        Song-level context action card shown from row right-click/options button.
+        This XAML defines only menu structure and shared visual styles;
+        click behavior is routed to code-behind events and handled by MainWindow/ViewModel.
+    -->
+    <Border Style="{StaticResource ContextMenuCardContainerBorderStyle}">
+
+        <StackPanel>
+            <!-- Add to Playlist -->
+            <Button x:Name="AddToPlaylistButton" Click="AddToPlaylistButton_Click"
+                    Style="{StaticResource ContextMenuCardActionButtonStyle}">
+                <StackPanel Style="{StaticResource ContextMenuCardRowLayoutStyle}">
+                    <Rectangle Style="{StaticResource ContextMenuCardGlyphRectangleStyle}">
+                        <Rectangle.OpacityMask>
+                            <ImageBrush ImageSource="pack://application:,,,/Resources/Images/add-list.png"
+                                        Stretch="Uniform"
+                                        RenderOptions.BitmapScalingMode="Fant"/>
+                        </Rectangle.OpacityMask>
+                    </Rectangle>
+                    <TextBlock Text="Add to Playlist"
+                               Style="{StaticResource ContextMenuCardLabelStyle}"/>
+                </StackPanel>
+            </Button>
+
+            <!-- Rename Song -->
+            <Button x:Name="RenameSongButton" Click="RenameSongButton_Click"
+                    Style="{StaticResource ContextMenuCardActionButtonStyle}">
+                <StackPanel Style="{StaticResource ContextMenuCardRowLayoutStyle}">
+                    <Rectangle Style="{StaticResource ContextMenuCardGlyphRectangleStyle}">
+                        <Rectangle.OpacityMask>
+                            <ImageBrush ImageSource="pack://application:,,,/Resources/Images/edit.png"
+                                        Stretch="Uniform"
+                                        RenderOptions.BitmapScalingMode="Fant"/>
+                        </Rectangle.OpacityMask>
+                    </Rectangle>
+                    <TextBlock Text="Rename Song"
+                               Style="{StaticResource ContextMenuCardLabelStyle}"/>
+                </StackPanel>
+            </Button>
+
+            <!-- Open in Folder -->
+            <Button x:Name="OpenFolderButton" Click="OpenFolderButton_Click"
+                    Style="{StaticResource ContextMenuCardActionButtonStyle}">
+                <StackPanel Style="{StaticResource ContextMenuCardRowLayoutStyle}">
+                    <Rectangle Style="{StaticResource ContextMenuCardGlyphRectangleStyle}">
+                        <Rectangle.OpacityMask>
+                            <ImageBrush ImageSource="pack://application:,,,/Resources/Images/folder.png"
+                                        Stretch="Uniform"
+                                        RenderOptions.BitmapScalingMode="Fant"/>
+                        </Rectangle.OpacityMask>
+                    </Rectangle>
+                    <TextBlock Text="Open in Folder"
+                               Style="{StaticResource ContextMenuCardLabelStyle}"/>
+                </StackPanel>
+            </Button>
+
+            <!-- Visual separator between regular actions and destructive action. -->
+            <Border Style="{StaticResource ContextMenuCardDividerStyle}"/>
+
+            <!-- Delete Song -->
+            <Button x:Name="DeleteSongButton" Click="DeleteSongButton_Click"
+                    Style="{StaticResource ContextMenuCardActionButtonStyle}">
+                <StackPanel Style="{StaticResource ContextMenuCardRowLayoutStyle}">
+                    <Rectangle Style="{StaticResource ContextMenuCardGlyphRectangleStyle}">
+                        <Rectangle.OpacityMask>
+                            <ImageBrush ImageSource="pack://application:,,,/Resources/Images/delete.png"
+                                        Stretch="Uniform"
+                                        RenderOptions.BitmapScalingMode="Fant"/>
+                        </Rectangle.OpacityMask>
+                    </Rectangle>
+                    <TextBlock Text="Delete Song"
+                               Style="{StaticResource ContextMenuCardLabelStyle}"/>
+                </StackPanel>
+            </Button>
+        </StackPanel>
+    </Border>
+</UserControl>

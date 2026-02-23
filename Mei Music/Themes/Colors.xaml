@@ -1,6 +1,12 @@
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
+    <!--
+        Shared color palette for Mei Music.
+        Brushes are grouped by UI area so designers/developers can update visual tone consistently.
+    -->
+
+    <!-- Sidebar text/icon brushes used by navigation cards and glyph rectangles. -->
     <SolidColorBrush x:Key="SidebarForegroundBrush" Color="#5E6673"/>
     <SolidColorBrush x:Key="SidebarGlyphBrush" Color="#FF4A5061"/>
     <SolidColorBrush x:Key="SidebarGlyphHoverBrush" Color="#3D4352"/>
@@ -14,7 +20,7 @@
     <SolidColorBrush x:Key="LeftPanelBackground" Color="#FFDFE4EB"/>
     <SolidColorBrush x:Key="RightPanelBackground" Color="#F0F2F5"/>
 
-    <!-- Slider Colors -->
+    <!-- Slider track/thumb state brushes shared by custom slider templates. -->
     <SolidColorBrush x:Key="SliderThumb.Static.Background" Color="#FFF0F0F0"/>
     <SolidColorBrush x:Key="SliderThumb.Static.Border" Color="#FFACACAC"/>
     <SolidColorBrush x:Key="SliderThumb.Static.Foreground" Color="#FFE5E5E5"/>

@@ -6,8 +6,17 @@
         xmlns:local="clr-namespace:Mei_Music"
         Title="Song Volume Control" Height="120" Width="300"
         WindowStartupLocation="CenterOwner">
+    <!--
+        Lightweight dialog used to edit per-song volume (0-100).
+        Slider value is two-way bound to the dialog Volume dependency property,
+        and code-behind forwards changes through a callback to persist/apply updates.
+    -->
     <Grid>
         <TextBlock Text="Adjust Song Volume" HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,10,0,0"/>
+        <!--
+            Selection range fill (SelectionStart -> SelectionEnd) provides immediate visual feedback
+            while click/drag handlers in code-behind support direct click-to-position behavior.
+        -->
         <Slider x:Name="SongVolumeSlider"
                 Minimum="0"
                 Maximum="100"

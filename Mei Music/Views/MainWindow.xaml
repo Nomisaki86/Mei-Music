@@ -1,8 +1,10 @@
 <Window  x:Class="Mei_Music.MainWindow"
+        x:Name="RootWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:converters="clr-namespace:Mei_Music.Converters"
         xmlns:local="clr-namespace:Mei_Music"
+        xmlns:models="clr-namespace:Mei_Music.Models"
         Title="Mei Music" Height="600" Width="900"
         Deactivated="Window_Deactivated"
         WindowStartupLocation="CenterScreen"
@@ -10,7 +12,15 @@
         ResizeMode="CanResizeWithGrip"
         Background="#1E1E1E">
 
+    <!--
+        Main shell layout map:
+        - Row 0: custom title bar
+        - Row 1: content area (left navigation + right playlist/song panel)
+        - Row 2: playback transport bar
+        Additional overlays (playlist creation/context menus) are hosted at root grid level.
+    -->
     <Window.Resources>
+        <!-- Value converters used by list row templates and playlist icon rendering. -->
         <converters:DisplayIndexConverter x:Key="DisplayIndexConverter"/>
         <converters:PathToImageSourceConverter x:Key="PathToImageSourceConverter"/>
     </Window.Resources>
@@ -45,7 +55,7 @@
             </DockPanel>
         </Border>
 
-        <!-- Main Content Area -->
+        <!-- Main Content Area: left navigation and right song management/playback scope. -->
         <Grid Grid.Row="1" Background="{DynamicResource RightPanelBackground}">
             <Grid.RowDefinitions>
                 <RowDefinition Height="*"/>
@@ -57,7 +67,7 @@
                 <ColumnDefinition Width="*"/>
             </Grid.ColumnDefinitions>
 
-            <!-- Left Panel -->
+            <!-- Left Panel: library scope selectors and created playlist navigation. -->
             <Border Grid.Row="0" Grid.Column="0" Background="{DynamicResource LeftPanelBackground}" Margin="0">
                 <Grid Margin="10,12,10,10">
                     <Grid.RowDefinitions>
@@ -86,7 +96,7 @@
                                        SnapsToDevicePixels="True"
                                        UseLayoutRounding="True">
                                 <Rectangle.OpacityMask>
-                                    <ImageBrush ImageSource="/Resources/Images/music-player.png"
+                                    <ImageBrush ImageSource="pack://application:,,,/Resources/Images/music-player.png"
                                                 Stretch="Uniform"
                                                 RenderOptions.BitmapScalingMode="Fant"/>
                                 </Rectangle.OpacityMask>
@@ -116,7 +126,7 @@
                                     <ScaleTransform ScaleX="0.92" ScaleY="0.92"/>
                                 </Rectangle.RenderTransform>
                                 <Rectangle.OpacityMask>
-                                    <ImageBrush ImageSource="/Resources/Images/heart-filled.png"
+                                    <ImageBrush ImageSource="pack://application:,,,/Resources/Images/heart-filled.png"
                                                 Stretch="Uniform"
                                                 RenderOptions.BitmapScalingMode="Fant"/>
                                 </Rectangle.OpacityMask>
@@ -163,7 +173,7 @@
                                                                    RenderOptions.BitmapScalingMode="Fant"
                                                                    SnapsToDevicePixels="True">
                                                             <Rectangle.OpacityMask>
-                                                                <ImageBrush ImageSource="/Resources/Images/arrow-up.png"
+                                                                <ImageBrush ImageSource="pack://application:,,,/Resources/Images/arrow-up.png"
                                                                             Stretch="Uniform"
                                                                             RenderOptions.BitmapScalingMode="Fant"/>
                                                             </Rectangle.OpacityMask>
@@ -175,7 +185,7 @@
                                                         <Setter TargetName="PlaylistsArrowIcon"
                                                                 Property="OpacityMask">
                                                             <Setter.Value>
-                                                                <ImageBrush ImageSource="/Resources/Images/arrow-down.png"
+                                                                <ImageBrush ImageSource="pack://application:,,,/Resources/Images/arrow-down.png"
                                                                             Stretch="Uniform"
                                                                             RenderOptions.BitmapScalingMode="Fant"/>
                                                             </Setter.Value>
@@ -293,7 +303,7 @@
                           SnapsToDevicePixels="True"
                           Panel.ZIndex="10"/>
 
-            <!-- Main Content on the Right -->
+            <!-- Main Content on the Right: toolbar, song list, custom scroll behavior. -->
             <Grid Grid.Row="0" Grid.Column="2" Background="{DynamicResource RightPanelBackground}" VerticalAlignment="Stretch">
                 <Border>
                     <Grid>
@@ -373,167 +383,111 @@
                                     </StackPanel>
                                 </Border>
                             </Popup>
+                            
+                            <!-- Song Context Menu Popup -->
+                            <Popup x:Name="SongContextMenuPopup"
+                                   AllowsTransparency="True"
+                                   Placement="Bottom"
+                                   HorizontalOffset="-10"
+                                   VerticalOffset="-10"
+                                   StaysOpen="False">
+                                <Border Background="Transparent" Padding="10">
+                                    <local:SongContextMenuCard x:Name="SongContextMenu"
+                                                               AddRequested="SongContextMenu_AddRequested"
+                                                               RenameRequested="SongContextMenu_RenameRequested"
+                                                               OpenFolderRequested="SongContextMenu_OpenFolderRequested"
+                                                               DeleteRequested="SongContextMenu_DeleteRequested"/>
+                                </Border>
+                            </Popup>
                         </Grid>
 
-                        <!-- Row 1: Column Headers -->
-                        <Border Grid.Row="1" BorderBrush="#D5D8DC" BorderThickness="0,0,0,1" Padding="12,6,12,6">
-                            <Grid>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="40"/>
-                                    <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="120"/>
-                                </Grid.ColumnDefinitions>
+                        <Grid x:Name="SongPanelScrollScope"
+                              Grid.Row="1"
+                              Grid.RowSpan="2"
+                              Background="#FFE9ECF1">
+                            <Grid.Triggers>
+                                <EventTrigger RoutedEvent="MouseEnter">
+                                    <BeginStoryboard>
+                                        <Storyboard>
+                                            <DoubleAnimation Storyboard.TargetName="SongOverlayScrollBar"
+                                                             Storyboard.TargetProperty="Opacity"
+                                                             To="1"
+                                                             Duration="0:0:0.18"/>
+                                        </Storyboard>
+                                    </BeginStoryboard>
+                                </EventTrigger>
+                                <EventTrigger RoutedEvent="MouseLeave">
+                                    <BeginStoryboard>
+                                        <Storyboard>
+                                            <DoubleAnimation Storyboard.TargetName="SongOverlayScrollBar"
+                                                             Storyboard.TargetProperty="Opacity"
+                                                             To="0"
+                                                             Duration="0:0:0.18"/>
+                                        </Storyboard>
+                                    </BeginStoryboard>
+                                </EventTrigger>
+                            </Grid.Triggers>
 
-                                <TextBlock Grid.Column="0" Text="#" Foreground="#8C919A" FontSize="12"
-                                           VerticalAlignment="Center" HorizontalAlignment="Center"/>
-                                <TextBlock Grid.Column="1" Text="Title" Foreground="#8C919A" FontSize="12"
-                                           VerticalAlignment="Center" Margin="4,0,0,0"/>
-                                <TextBlock Grid.Column="2" Text="Actions" Foreground="#8C919A" FontSize="12"
-                                           VerticalAlignment="Center" HorizontalAlignment="Center"/>
-                            </Grid>
-                        </Border>
+                            <!-- Song ListView -->
+                            <ListView x:Name="UploadedSongList"
+                                      Background="#FFE9ECF1"
+                                      HorizontalContentAlignment="Stretch"
+                                      VerticalContentAlignment="Stretch"
+                                      ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                      ScrollViewer.VerticalScrollBarVisibility="Hidden"
+                                      ScrollViewer.CanContentScroll="True"
+                                      VirtualizingPanel.ScrollUnit="Pixel"
+                                      VirtualizingStackPanel.IsVirtualizing="True"
+                                      VirtualizingStackPanel.VirtualizationMode="Recycling"
+                                      SelectionChanged="PlaySelectedSong"
+                                      PreviewMouseRightButtonDown="UploadedSongList_PreviewMouseRightButtonDown"
+                                      PreviewMouseRightButtonUp="UploadedSongList_PreviewMouseRightButtonUp"
+                                      ScrollViewer.ScrollChanged="UploadedSongList_ScrollChanged"
+                                      BorderThickness="0"
+                                      ItemContainerStyle="{StaticResource SongListViewItemStyle}"
+                                      SizeChanged="SongList_SizeChanged">
 
-                        <!-- Row 2: Song List -->
-                        <ListBox x:Name="UploadedSongList" 
-                                Grid.Row="2"
-                                Background="#FFE9ECF1"
-                                HorizontalContentAlignment="Stretch" 
-                                VerticalContentAlignment="Stretch"
-                                ScrollViewer.CanContentScroll="True"
-                                VirtualizingPanel.ScrollUnit="Pixel"
-                                VirtualizingStackPanel.IsVirtualizing="True"
-                                VirtualizingStackPanel.VirtualizationMode="Recycling"
-                                ItemsSource="{Binding Songs}"
-                                SelectedItem="{Binding CurrentSong}"
-                                SelectionChanged="PlaySelectedSong"
-                                Style="{StaticResource CustomListBox}"
-                                ItemContainerStyle="{StaticResource SongListStyle}">
-                            <ListBox.ItemTemplate>
-                                <DataTemplate>
-                                    <Grid HorizontalAlignment="Stretch" MinHeight="40" Background="Transparent" MouseLeftButtonDown="SongItem_MouseLeftButtonDown">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="40"/>
-                                            <ColumnDefinition Width="*"/>
-                                            <ColumnDefinition Width="120"/>
-                                        </Grid.ColumnDefinitions>
+                                <ListView.ItemsSource>
+                                    <CompositeCollection>
+                                        <ListViewItem Focusable="False"
+                                                      Margin="8,8,8,0"
+                                                      Padding="0"
+                                                      Style="{StaticResource SongListHeaderItemStyle}">
+                                            <local:SongRowView IsHeader="True" Background="#FFE9ECF1"
+                                                               ColumnLayout="{Binding SongColumnLayout, RelativeSource={RelativeSource AncestorType=Window}}" />
+                                        </ListViewItem>
 
-                                        <!-- Index Column -->
-                                        <TextBlock VerticalAlignment="Center" HorizontalAlignment="Center"
-                                                   Grid.Column="0" Foreground="#8C919A" FontSize="13">
-                                            <TextBlock.Text>
-                                                <MultiBinding Converter="{StaticResource DisplayIndexConverter}">
-                                                    <Binding Path="."/>
-                                                    <Binding RelativeSource="{RelativeSource AncestorType=ListBox}"/>
-                                                </MultiBinding>
-                                            </TextBlock.Text>
-                                        </TextBlock>
+                                        <CollectionContainer x:Name="SongDataContainer"
+                                                             Collection="{Binding DataContext.Songs, ElementName=RootWindow}" />
 
-                                        <!-- Song Name -->
-                                        <TextBlock Text="{Binding Name}" 
-                                                   VerticalAlignment="Center" 
-                                                   Margin="4,0,10,0" 
-                                                   FontSize="13.5"
-                                                   TextTrimming="CharacterEllipsis"
-                                                   Grid.Column="1"/>
+                                    </CompositeCollection>
+                                </ListView.ItemsSource>
 
-                                        <!-- Actions Column -->
-                                        <StackPanel Grid.Column="2" Orientation="Horizontal"
-                                                    HorizontalAlignment="Center" VerticalAlignment="Center">
+                                <ListView.Resources>
+                                    <DataTemplate DataType="{x:Type models:Song}">
+                                        <local:SongRowView Song="{Binding}"
+                                                           ColumnLayout="{Binding SongColumnLayout, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                           OptionsRequested="SongRow_OptionsRequested"
+                                                           PlayPauseRequested="SongRow_PlayPauseRequested"/>
+                                    </DataTemplate>
+                                </ListView.Resources>
+                            </ListView>
 
-                                            <!-- Like Button -->
-                                            <Button Command="{Binding DataContext.ToggleLikeCommand, RelativeSource={RelativeSource AncestorType=Window}}"
-                                                    CommandParameter="{Binding}"
-                                                    ToolTip="Like"
-                                                    Style="{StaticResource LikeButtonStyle}"
-                                                    Margin="0,0,6,0">
-                                                <Grid Width="16" Height="16" RenderTransformOrigin="0.5,0.5">
-                                                    <Grid.RenderTransform>
-                                                        <ScaleTransform ScaleX="0.9" ScaleY="0.9"/>
-                                                    </Grid.RenderTransform>
-                                                    <Rectangle RenderOptions.BitmapScalingMode="Fant"
-                                                               SnapsToDevicePixels="True">
-                                                        <Rectangle.OpacityMask>
-                                                            <ImageBrush ImageSource="/Resources/Images/heart.png"
-                                                                        Stretch="Uniform"
-                                                                        RenderOptions.BitmapScalingMode="Fant"/>
-                                                        </Rectangle.OpacityMask>
-                                                        <Rectangle.Style>
-                                                            <Style TargetType="Rectangle">
-                                                                <Setter Property="Fill" Value="{StaticResource SidebarGlyphBrush}"/>
-                                                                <Setter Property="Visibility" Value="Visible"/>
-                                                                <Style.Triggers>
-                                                                    <DataTrigger Binding="{Binding IsLiked}" Value="True">
-                                                                        <Setter Property="Visibility" Value="Collapsed"/>
-                                                                    </DataTrigger>
-                                                                    <DataTrigger Binding="{Binding IsMouseOver, RelativeSource={RelativeSource AncestorType=Button}}" Value="True">
-                                                                        <Setter Property="Fill" Value="{StaticResource SidebarGlyphHoverBrush}"/>
-                                                                    </DataTrigger>
-                                                                </Style.Triggers>
-                                                            </Style>
-                                                        </Rectangle.Style>
-                                                    </Rectangle>
-                                                    <Rectangle RenderOptions.BitmapScalingMode="Fant"
-                                                               SnapsToDevicePixels="True">
-                                                        <Rectangle.OpacityMask>
-                                                            <ImageBrush ImageSource="/Resources/Images/heart-filled.png"
-                                                                        Stretch="Uniform"
-                                                                        RenderOptions.BitmapScalingMode="Fant"/>
-                                                        </Rectangle.OpacityMask>
-                                                        <Rectangle.Style>
-                                                            <Style TargetType="Rectangle">
-                                                                <Setter Property="Fill" Value="{StaticResource SidebarGlyphBrush}"/>
-                                                                <Setter Property="Visibility" Value="Collapsed"/>
-                                                                <Style.Triggers>
-                                                                    <DataTrigger Binding="{Binding IsLiked}" Value="True">
-                                                                        <Setter Property="Visibility" Value="Visible"/>
-                                                                    </DataTrigger>
-                                                                    <DataTrigger Binding="{Binding IsMouseOver, RelativeSource={RelativeSource AncestorType=Button}}" Value="True">
-                                                                        <Setter Property="Fill" Value="{StaticResource SidebarGlyphHoverBrush}"/>
-                                                                    </DataTrigger>
-                                                                </Style.Triggers>
-                                                            </Style>
-                                                        </Rectangle.Style>
-                                                    </Rectangle>
-                                                </Grid>
-                                            </Button>
-
-                                            <!-- Rename Button -->
-                                            <Button Content="🖊" 
-                                                    ToolTip="Rename"
-                                                    Command="{Binding DataContext.RenameSongCommand, RelativeSource={RelativeSource AncestorType=Window}}" 
-                                                    CommandParameter="{Binding}"
-                                                    Style="{StaticResource SongItemActionButtonStyle}"
-                                                    Margin="0,0,6,0"/>
-
-                                            <!-- Volume Button -->
-                                            <Button x:Name="SongVolumeButton" 
-                                                    ToolTip="Change volume"
-                                                    Content="🔊" 
-                                                    Command="{Binding DataContext.SongVolumeCommand, RelativeSource={RelativeSource AncestorType=Window}}" 
-                                                    CommandParameter="{Binding}"
-                                                    Style="{StaticResource SongItemActionButtonStyle}"
-                                                    Margin="0,0,6,0"/>
-
-                                            <!-- Folder Button -->
-                                            <Button Content="📂" 
-                                                    ToolTip="Open path"
-                                                    Command="{Binding DataContext.OpenFolderCommand, RelativeSource={RelativeSource AncestorType=Window}}" 
-                                                    CommandParameter="{Binding}" 
-                                                    Style="{StaticResource SongItemActionButtonStyle}"
-                                                    Margin="0,0,6,0"/>
-
-                                            <!-- Delete Button -->
-                                            <Button Content="❌" 
-                                                    ToolTip="Delete"
-                                                    Command="{Binding DataContext.DeleteSongCommand, RelativeSource={RelativeSource AncestorType=Window}}" 
-                                                    CommandParameter="{Binding}" 
-                                                    Style="{StaticResource SongItemActionButtonStyle}"/>
-                                        </StackPanel>
-
-                                    </Grid>
-                                </DataTemplate>
-                            </ListBox.ItemTemplate>
-                        </ListBox>
+                            <ScrollBar x:Name="SongOverlayScrollBar"
+                                       Width="10"
+                                       Margin="0,0,2,0"
+                                       HorizontalAlignment="Right"
+                                       VerticalAlignment="Stretch"
+                                       Orientation="Vertical"
+                                       Opacity="0"
+                                       Minimum="0"
+                                       Maximum="0"
+                                       SmallChange="16"
+                                       LargeChange="32"
+                                       Panel.ZIndex="8"
+                                       ValueChanged="SongOverlayScrollBar_ValueChanged"
+                                       Style="{StaticResource CustomScrollBar}"/>
+                        </Grid>
 
 
                     </Grid>
@@ -544,6 +498,7 @@
             <Grid Grid.Row="1" Grid.ColumnSpan="3" Height="68" Background="#FFECEFF1">
                 <Grid Margin="0,10">
                     <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="220"/>
                         <ColumnDefinition Width="Auto"/>
                         <ColumnDefinition Width="Auto"/>
                         <ColumnDefinition Width="Auto"/>
@@ -552,37 +507,57 @@
                         <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
 
+                    <Border Grid.Column="0"
+                            Margin="14,0,8,0"
+                            Padding="10,6"
+                            VerticalAlignment="Center"
+                            CornerRadius="8"
+                            Background="#FFF5F7FA"
+                            BorderBrush="#FFD8DEE6"
+                            BorderThickness="1">
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <TextBlock Text="♪"
+                                       FontSize="12"
+                                       Foreground="#5B6472"
+                                       VerticalAlignment="Center"/>
+                            <TextBlock Margin="6,0,0,0"
+                                       Width="180"
+                                       TextTrimming="CharacterEllipsis"
+                                       Foreground="#3B4554"
+                                       FontSize="12.5"
+                                       FontWeight="SemiBold"
+                                       VerticalAlignment="Center"
+                                       Text="{Binding CurrentSong.Name, TargetNullValue=No song playing, FallbackValue=No song playing}"/>
+                        </StackPanel>
+                    </Border>
+
                     <!-- Previous Song Button-->
-                    <Button Grid.Column="0" FontSize="25" 
-                            Margin="25,0,-5,0" HorizontalAlignment="Left" 
-                            RenderOptions.BitmapScalingMode="Fant"
+                    <Button Grid.Column="1"
                             x:Name="PreviousSongButton"
                             Click="PreviousSongClicked"
                             Style="{StaticResource TransportControlButtonStyle}">
-                        <Image Source="/Resources/Images/previous_button.png" Width="45" Height="45"/>
+                        <Image Source="pack://application:,,,/Resources/Images/previous_button.png" Width="45" Height="45"/>
                     </Button>
 
                     <!-- Stop Song Button-->
-                    <Button Grid.Column="1" Padding="0,0,0,1" FontSize="33" 
+                    <Button Grid.Column="2"
                             x:Name="StopSongButton"
                             Click="StopSongClicked"
                             Margin="2,0,2,0"
                             RenderOptions.BitmapScalingMode="Fant"
                             HorizontalAlignment="Left" Style="{StaticResource TransportControlButtonStyle}">
-                        <Image Source="/Resources/Images/pause_button.png" Width="35" Height="35"/>
+                        <Image Source="pack://application:,,,/Resources/Images/pause_button.png" Width="35" Height="35"/>
                     </Button>
 
                     <!-- Next Song Button-->
-                    <Button Grid.Column="2" FontSize="25" 
-                            Margin="-5,0,15,0" HorizontalAlignment="Right"
-                            RenderOptions.BitmapScalingMode="Fant"
+                    <Button Grid.Column="3"
                             x:Name="NextSongButton"
                             Click="NextSongClicked"
                             Style="{StaticResource TransportControlButtonStyle}">
-                        <Image Source="/Resources/Images/next_button.png" Width="45" Height="45"/>
+                        <Image Source="pack://application:,,,/Resources/Images/next_button.png" Width="45" Height="45"/>
                     </Button>
 
-                    <Grid Grid.Column="3" VerticalAlignment="Center" HorizontalAlignment="Stretch">
+                    <Grid Grid.Column="4" VerticalAlignment="Center" HorizontalAlignment="Stretch">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="Auto"/>
                             <ColumnDefinition Width="*"/>
@@ -611,11 +586,11 @@
                         <Label x:Name="SongLength_Timer" Grid.Column="2" Content="{Binding TotalTimeText}" Margin="5,0,0,0"/>
                     </Grid>
 
-                    <Label Grid.Column="4" HorizontalAlignment="Right" VerticalAlignment="Center" 
+                    <Label Grid.Column="5" HorizontalAlignment="Right" VerticalAlignment="Center" 
                            Content="🔊"/>
 
                     <Slider x:Name="VolumeSlider" 
-                            Grid.Column="5" 
+                            Grid.Column="6" 
                             HorizontalAlignment="Left" 
                             VerticalAlignment="Center" 
                             Width="100" 
@@ -655,14 +630,15 @@
               Grid.Row="1" Grid.RowSpan="2"
               Visibility="Collapsed"
               Panel.ZIndex="200"
-              MouseLeftButtonDown="PlaylistContextMenuDismiss_Click"
-              Background="Transparent">
+              Background="{x:Null}">
 
             <!-- Extracted UserControl; positioned via Margin set in code-behind -->
             <local:PlaylistContextMenuCard x:Name="PlaylistContextMenuCard"
                                            HorizontalAlignment="Left" VerticalAlignment="Top"
                                            DeleteRequested="ContextMenuDeletePlaylist_Click"/>
         </Grid>
+
+
 
     </Grid>
 </Window>

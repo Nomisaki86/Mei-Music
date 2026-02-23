@@ -7,6 +7,10 @@
         mc:Ignorable="d"
         Title="Delete Confirmation" Height="140" Width="400"
         WindowStartupLocation="CenterOwner" ResizeMode="NoResize">
+    <!--
+        Confirmation dialog used before removing a song from library/storage.
+        Button clicks map to code-behind handlers that set IsConfirmed and close the dialog.
+    -->
     <StackPanel Margin="20">
         <!-- Message Text -->
         <TextBlock x:Name="MessageText" 
@@ -16,7 +20,7 @@
                    Margin="0,0,0,10" 
                    HorizontalAlignment="Center"/>
 
-        <!-- Buttons -->
+        <!-- Decision actions exposed to callers as Yes/No confirmation result. -->
         <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
             <Button Content="Yes" Style="{StaticResource DialogButtonStyle}" Click="YesButton_Click"/>
             <Button Content="No" Style="{StaticResource DialogButtonStyle}" Click="NoButton_Click"/>

@@ -5,6 +5,10 @@ using System.IO;
 
 namespace Mei_Music.Services
 {
+    /// <summary>
+    /// JSON-based persistence service for songs and user-created playlists.
+    /// Handles disk I/O and minimal data normalization when loading older data.
+    /// </summary>
     public class FileService : IFileService
     {
         /// <summary>
@@ -37,6 +41,7 @@ namespace Mei_Music.Services
             string json = File.ReadAllText(songDataFilePath);
             var loadedSongs = JsonConvert.DeserializeObject<List<Song>>(json) ?? new List<Song>();
 
+            // Normalize loaded records so legacy/edited files do not break runtime assumptions.
             var normalizedSongs = new List<Song>();
             foreach (var loadedSong in loadedSongs)
             {
@@ -45,6 +50,7 @@ namespace Mei_Music.Services
                     Index = loadedSong.Index,
                     Name = loadedSong.Name,
                     IsLiked = loadedSong.IsLiked,
+                    Duration = loadedSong.Duration ?? string.Empty,
                     // Keep persisted volume in a safe range; default to 50 when invalid.
                     Volume = (loadedSong.Volume > 100) ? 100 : (loadedSong.Volume < 0 ? 50 : loadedSong.Volume)
                 });

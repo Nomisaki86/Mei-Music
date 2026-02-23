@@ -14,16 +14,34 @@ namespace Mei_Music
     /// </summary>
     public partial class ImageCropDialog : Window
     {
-        // The output path of the cropped image (set on Save, null on Cancel)
+        /// <summary>
+        /// Output path of the cropped image written on Save; null when canceled.
+        /// </summary>
         public string? CroppedImagePath { get; private set; }
 
+        /// <summary>
+        /// Last mouse position used to compute drag delta while panning image.
+        /// </summary>
         private Point _dragStart;
+
+        /// <summary>
+        /// True while user is currently dragging the image viewport.
+        /// </summary>
         private bool _isDragging;
 
-        // Track translate offsets so we can apply constraints
+        /// <summary>
+        /// Current horizontal translation applied to image transform.
+        /// </summary>
         private double _translateX;
+
+        /// <summary>
+        /// Current vertical translation applied to image transform.
+        /// </summary>
         private double _translateY;
 
+        /// <summary>
+        /// Creates crop dialog and defers image load until visual tree has measured viewport.
+        /// </summary>
         public ImageCropDialog(string sourceImagePath)
         {
             InitializeComponent();
@@ -150,6 +168,9 @@ namespace Mei_Music
 
         // ─── Pan (Drag) ─────────────────────────────────────────────────────────
 
+        /// <summary>
+        /// Starts viewport pan interaction and captures mouse to continue dragging outside bounds.
+        /// </summary>
         private void Canvas_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
         {
             _isDragging = true;
@@ -157,6 +178,9 @@ namespace Mei_Music
             ImageCanvas.CaptureMouse();
         }
 
+        /// <summary>
+        /// Applies pan delta while dragging and keeps translation clamped to viewport coverage.
+        /// </summary>
         private void Canvas_MouseMove(object sender, MouseEventArgs e)
         {
             if (!_isDragging || e.LeftButton != MouseButtonState.Pressed) return;
@@ -171,12 +195,18 @@ namespace Mei_Music
             ApplyTranslate();
         }
 
+        /// <summary>
+        /// Ends pan interaction and releases mouse capture.
+        /// </summary>
         private void Canvas_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
         {
             _isDragging = false;
             ImageCanvas.ReleaseMouseCapture();
         }
 
+        /// <summary>
+        /// Handles mouse-wheel zoom by stepping slider value within configured bounds.
+        /// </summary>
         private void Canvas_MouseWheel(object sender, MouseWheelEventArgs e)
         {
             // Allow zooming via mouse wheel (delta 120 per notch)
@@ -187,6 +217,9 @@ namespace Mei_Music
 
         // ─── Save / Cancel ──────────────────────────────────────────────────────
 
+        /// <summary>
+        /// Renders current crop viewport and closes dialog as accepted.
+        /// </summary>
         private void SaveButton_Click(object sender, RoutedEventArgs e)
         {
             CroppedImagePath = RenderCrop();
@@ -194,6 +227,9 @@ namespace Mei_Music
             Close();
         }
 
+        /// <summary>
+        /// Cancels crop operation and closes dialog without output image.
+        /// </summary>
         private void CancelButton_Click(object sender, RoutedEventArgs e)
         {
             CroppedImagePath = null;

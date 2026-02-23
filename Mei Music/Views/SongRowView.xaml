@@ -1,0 +1,461 @@
+<UserControl x:Class="Mei_Music.SongRowView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:converters="clr-namespace:Mei_Music.Converters"
+             x:Name="Root"
+             Background="Transparent"
+             SnapsToDevicePixels="True">
+
+    <!--
+        Reusable row template used for both:
+        - header row (IsHeader=True)
+        - data rows bound to Song models (IsHeader=False)
+        Visibility styles below switch elements between header/data modes.
+    -->
+    <UserControl.Resources>
+        <converters:DisplayIndexConverter x:Key="DisplayIndexConverter"/>
+
+        <!-- Visibility helpers to keep one template for header and song rows. -->
+        <Style x:Key="HeaderOnlyElementStyle" TargetType="{x:Type FrameworkElement}">
+            <Setter Property="Visibility" Value="Collapsed"/>
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding IsHeader, ElementName=Root}" Value="True">
+                    <Setter Property="Visibility" Value="Visible"/>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style x:Key="DataOnlyElementStyle" TargetType="{x:Type FrameworkElement}">
+            <Setter Property="Visibility" Value="Visible"/>
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding IsHeader, ElementName=Root}" Value="True">
+                    <Setter Property="Visibility" Value="Collapsed"/>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <!-- Resize thumbs are only interactive in header mode. -->
+        <Style x:Key="HeaderResizeThumbStyle" TargetType="Thumb">
+            <Setter Property="Visibility" Value="Collapsed"/>
+            <Setter Property="Cursor" Value="SizeWE"/>
+            <Setter Property="Width" Value="8"/>
+            <Setter Property="HorizontalAlignment" Value="Left"/>
+            <Setter Property="VerticalAlignment" Value="Stretch"/>
+            <Setter Property="Background" Value="#01000000"/>
+            <Setter Property="Panel.ZIndex" Value="5"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Thumb">
+                        <Border Background="{TemplateBinding Background}"/>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding IsHeader, ElementName=Root}" Value="True">
+                    <Setter Property="Visibility" Value="Visible"/>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <!--Heaver Hover Columns-->
+        <Style x:Key="HeaderHoverColumnGuideStyle" TargetType="Rectangle">
+            <Setter Property="Visibility" Value="Collapsed"/>
+            <Setter Property="HorizontalAlignment" Value="Right"/>
+            <Setter Property="VerticalAlignment" Value="Stretch"/>
+            <Setter Property="Width" Value="2"/>
+            <Setter Property="Margin" Value="0,0,0,0"/>
+            <Setter Property="Fill" Value="#A1A7AF"/>
+            <Setter Property="Opacity" Value="0.50"/>
+            <Setter Property="Panel.ZIndex" Value="4"/>
+            <Setter Property="IsHitTestVisible" Value="False"/>
+            <Setter Property="SnapsToDevicePixels" Value="True"/>
+            <Setter Property="UseLayoutRounding" Value="True"/>
+            <Setter Property="RenderOptions.EdgeMode" Value="Aliased"/>
+            <Style.Triggers>
+                <MultiDataTrigger>
+                    <MultiDataTrigger.Conditions>
+                        <Condition Binding="{Binding IsHeader, ElementName=Root}" Value="True"/>
+                        <Condition Binding="{Binding IsMouseOver, ElementName=Root}" Value="True"/>
+                    </MultiDataTrigger.Conditions>
+                    <Setter Property="Visibility" Value="Visible"/>
+                </MultiDataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <!-- Song index text hides when play/pause affordance or now-playing visualizer should be shown. -->
+        <Style x:Key="SongIndexTextStyle" TargetType="TextBlock">
+            <Setter Property="Visibility" Value="Visible"/>
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding IsHeader, ElementName=Root}" Value="True">
+                    <Setter Property="Visibility" Value="Collapsed"/>
+                </DataTrigger>
+                <DataTrigger Binding="{Binding IsMouseOver, RelativeSource={RelativeSource AncestorType=ListViewItem}}" Value="True">
+                    <Setter Property="Visibility" Value="Collapsed"/>
+                </DataTrigger>
+                <DataTrigger Binding="{Binding IsSelected, RelativeSource={RelativeSource AncestorType=ListViewItem}}" Value="True">
+                    <Setter Property="Visibility" Value="Collapsed"/>
+                </DataTrigger>
+                <MultiDataTrigger>
+                    <MultiDataTrigger.Conditions>
+                        <Condition Binding="{Binding Song.IsCurrent, ElementName=Root}" Value="True"/>
+                        <Condition Binding="{Binding DataContext.IsPlaying, RelativeSource={RelativeSource AncestorType=Window}}" Value="True"/>
+                    </MultiDataTrigger.Conditions>
+                    <Setter Property="Visibility" Value="Collapsed"/>
+                </MultiDataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <!-- Play/pause button appears on hover/selection for row-level playback interaction. -->
+        <Style x:Key="SongIndexPlayPauseButtonStyle" TargetType="Button" BasedOn="{StaticResource SongItemActionButtonStyle}">
+            <Setter Property="Visibility" Value="Collapsed"/>
+            <Setter Property="Width" Value="16"/>
+            <Setter Property="Height" Value="16"/>
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="Margin" Value="0"/>
+            <Setter Property="HorizontalAlignment" Value="Left"/>
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding IsHeader, ElementName=Root}" Value="True">
+                    <Setter Property="Visibility" Value="Collapsed"/>
+                </DataTrigger>
+                <MultiDataTrigger>
+                    <MultiDataTrigger.Conditions>
+                        <Condition Binding="{Binding IsHeader, ElementName=Root}" Value="False"/>
+                        <Condition Binding="{Binding IsMouseOver, RelativeSource={RelativeSource AncestorType=ListViewItem}}" Value="True"/>
+                    </MultiDataTrigger.Conditions>
+                    <Setter Property="Visibility" Value="Visible"/>
+                </MultiDataTrigger>
+                <MultiDataTrigger>
+                    <MultiDataTrigger.Conditions>
+                        <Condition Binding="{Binding IsHeader, ElementName=Root}" Value="False"/>
+                        <Condition Binding="{Binding IsSelected, RelativeSource={RelativeSource AncestorType=ListViewItem}}" Value="True"/>
+                    </MultiDataTrigger.Conditions>
+                    <Setter Property="Visibility" Value="Visible"/>
+                </MultiDataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <!-- Animated now-playing indicator shown for current song while actively playing. -->
+        <Style x:Key="SongIndexNowPlayingVisualizerStyle" TargetType="StackPanel">
+            <Setter Property="Visibility" Value="Collapsed"/>
+            <Setter Property="Orientation" Value="Horizontal"/>
+            <Setter Property="Height" Value="14"/>
+            <Setter Property="HorizontalAlignment" Value="Left"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="IsHitTestVisible" Value="False"/>
+            <Style.Triggers>
+                <MultiDataTrigger>
+                    <MultiDataTrigger.Conditions>
+                        <Condition Binding="{Binding IsHeader, ElementName=Root}" Value="False"/>
+                        <Condition Binding="{Binding Song.IsCurrent, ElementName=Root}" Value="True"/>
+                        <Condition Binding="{Binding DataContext.IsPlaying, RelativeSource={RelativeSource AncestorType=Window}}" Value="True"/>
+                        <Condition Binding="{Binding IsMouseOver, RelativeSource={RelativeSource AncestorType=ListViewItem}}" Value="False"/>
+                        <Condition Binding="{Binding IsSelected, RelativeSource={RelativeSource AncestorType=ListViewItem}}" Value="False"/>
+                    </MultiDataTrigger.Conditions>
+                    <Setter Property="Visibility" Value="Visible"/>
+                </MultiDataTrigger>
+            </Style.Triggers>
+        </Style>
+    </UserControl.Resources>
+
+    <!-- Column structure is shared by header and rows through SongColumnLayout bindings. -->
+    <Grid Margin="15,6,15,6">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="{Binding ColumnLayout.IndexWidth, ElementName=Root}"/>
+            <ColumnDefinition Width="{Binding ColumnLayout.TitleWidth, ElementName=Root}"/>
+            <ColumnDefinition Width="{Binding ColumnLayout.LikedWidth, ElementName=Root}"/>
+            <ColumnDefinition Width="{Binding ColumnLayout.TimeWidth, ElementName=Root}"/>
+            <ColumnDefinition Width="{Binding ColumnLayout.VolumeWidth, ElementName=Root}"/>
+        </Grid.ColumnDefinitions>
+
+        <!-- Column guide bars for visual alignment; visible only when hovering the header row. -->
+        <Rectangle Grid.Column="0" Style="{StaticResource HeaderHoverColumnGuideStyle}"/>
+        <Rectangle Grid.Column="1" Style="{StaticResource HeaderHoverColumnGuideStyle}"/>
+        <Rectangle Grid.Column="2" Style="{StaticResource HeaderHoverColumnGuideStyle}"/>
+        <Rectangle Grid.Column="3" Style="{StaticResource HeaderHoverColumnGuideStyle}"/>
+
+        <TextBlock Grid.Column="0"
+                   Text="#"
+                   Foreground="#8C919A"
+                   FontSize="12"
+                   VerticalAlignment="Center"
+                   HorizontalAlignment="Left"
+                   Style="{StaticResource HeaderOnlyElementStyle}"/>
+
+        <Grid Grid.Column="0" Style="{StaticResource DataOnlyElementStyle}">
+            <TextBlock Foreground="#8C919A"
+                       FontSize="13"
+                       VerticalAlignment="Center"
+                       HorizontalAlignment="Left"
+                       Style="{StaticResource SongIndexTextStyle}">
+                <TextBlock.Text>
+                    <MultiBinding Converter="{StaticResource DisplayIndexConverter}">
+                        <Binding Path="Song" ElementName="Root"/>
+                        <Binding RelativeSource="{RelativeSource AncestorType=ListView}"/>
+                    </MultiBinding>
+                </TextBlock.Text>
+            </TextBlock>
+
+            <!--Defines the Song Play Dynamic Visualizer-->
+            <StackPanel Style="{StaticResource SongIndexNowPlayingVisualizerStyle}">
+                <StackPanel.Resources>
+                    <Style TargetType="Border">
+                        <Setter Property="Width" Value="3"/>
+                        <Setter Property="Height" Value="12"/>
+                        <Setter Property="Background" Value="#FFBC2E2E"/>
+                        <Setter Property="Margin" Value="2,0,0,0"/>
+                        <Setter Property="CornerRadius" Value="1.5,1.5,0,0"/>
+                        <!--Snapps element to physical screen pixels, solve stretched width bars-->
+                        <Setter Property="UseLayoutRounding" Value="True"/>
+                        
+                        <Setter Property="RenderTransformOrigin" Value="0.5,1"/>
+                        <Setter Property="RenderTransform">
+                            <Setter.Value>
+                                <ScaleTransform ScaleY="0.3"/>
+                            </Setter.Value>
+                        </Setter>
+                    </Style>
+
+                    <!--Defines the Aniamtion for the Bars-->
+                    <Storyboard x:Key="PlayingAnimation" RepeatBehavior="Forever">
+                        <DoubleAnimation Storyboard.TargetName="Bar1" 
+                                         Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleY)"
+                                         From="0.3" To="1.0" 
+                                         Duration="0:0:0.5" 
+                                         AutoReverse="True" 
+                                         BeginTime="0:0:0" />
+
+                        <DoubleAnimation Storyboard.TargetName="Bar2" 
+                                         Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleY)"
+                                         From="0.3" To="1.0" 
+                                         Duration="0:0:0.5" 
+                                         AutoReverse="True" 
+                                         BeginTime="0:0:0.3" />
+
+                        <DoubleAnimation Storyboard.TargetName="Bar3" 
+                                         Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleY)"
+                                         From="0.3" To="1.0" 
+                                         Duration="0:0:0.5" 
+                                         AutoReverse="True" 
+                                         BeginTime="0:0:0.6" /> 
+
+                    </Storyboard>
+                </StackPanel.Resources>
+
+                <StackPanel.Triggers>
+                    <EventTrigger RoutedEvent="FrameworkElement.Loaded">
+                        <BeginStoryboard Storyboard="{StaticResource PlayingAnimation}"/>
+                    </EventTrigger>
+                </StackPanel.Triggers>
+
+                <Border x:Name="Bar1"/>
+                <Border x:Name="Bar2"/>
+                <Border x:Name="Bar3"/>
+            </StackPanel>
+
+            <Button ToolTip="Play/Pause"
+                    Click="PlayPauseButton_Click"
+                    Style="{StaticResource SongIndexPlayPauseButtonStyle}">
+                <Image Width="13"
+                       Height="13"
+                       RenderOptions.BitmapScalingMode="Fant"
+                       SnapsToDevicePixels="True">
+                    <Image.Style>
+                        <Style TargetType="Image">
+                            <Setter Property="Source" Value="pack://application:,,,/Resources/Images/SongRow/play.png"/>
+                            <Style.Triggers>
+                                <MultiDataTrigger>
+                                    <MultiDataTrigger.Conditions>
+                                        <Condition Binding="{Binding Song.IsCurrent, ElementName=Root}" Value="True"/>
+                                        <Condition Binding="{Binding DataContext.IsPlaying, RelativeSource={RelativeSource AncestorType=Window}}" Value="True"/>
+                                    </MultiDataTrigger.Conditions>
+                                    <Setter Property="Source" Value="pack://application:,,,/Resources/Images/SongRow/pause.png"/>
+                                </MultiDataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Image.Style>
+                </Image>
+            </Button>
+        </Grid>
+
+        <TextBlock Grid.Column="1"
+                   Text="Title"
+                   Foreground="#8C919A"
+                   FontSize="12"
+                   Margin="8,0,0,0"
+                   VerticalAlignment="Center"
+                   HorizontalAlignment="Left"
+                   Style="{StaticResource HeaderOnlyElementStyle}"/>
+
+        <Grid Grid.Column="1" Style="{StaticResource DataOnlyElementStyle}" Background="Transparent">
+            <TextBlock Text="{Binding Song.Name, ElementName=Root}"
+                       VerticalAlignment="Center"
+                       HorizontalAlignment="Left"
+                       Margin="8,0,26,0"
+                       TextAlignment="Left"
+                       Background="Transparent"
+                       MaxWidth="380"
+                       FontSize="13.5"
+                       TextTrimming="CharacterEllipsis"/>
+
+            <Button ToolTip="Options"
+                    Click="OptionsButton_Click"
+                    HorizontalAlignment="Right"
+                    Margin="0,0,10,0"
+                    VerticalAlignment="Center">
+                <Button.Style>
+                    <Style TargetType="Button" BasedOn="{StaticResource SongItemActionButtonStyle}">
+                        <Setter Property="Opacity" Value="0"/>
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding IsMouseOver, RelativeSource={RelativeSource AncestorType=ListViewItem}}" Value="True">
+                                <Setter Property="Opacity" Value="1"/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Button.Style>
+                <Grid Width="16" Height="16" RenderTransformOrigin="0.5,0.5">
+                    <Grid.RenderTransform>
+                        <ScaleTransform ScaleX="0.9" ScaleY="0.9"/>
+                    </Grid.RenderTransform>
+                    <Rectangle RenderOptions.BitmapScalingMode="Fant"
+                               SnapsToDevicePixels="True"
+                               Fill="{StaticResource SidebarGlyphBrush}">
+                        <Rectangle.OpacityMask>
+                            <ImageBrush ImageSource="pack://application:,,,/Resources/Images/option.png"
+                                        Stretch="Uniform"
+                                        RenderOptions.BitmapScalingMode="Fant"/>
+                        </Rectangle.OpacityMask>
+                        <Rectangle.Style>
+                            <Style TargetType="Rectangle">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsMouseOver, RelativeSource={RelativeSource AncestorType=Button}}" Value="True">
+                                        <Setter Property="Fill" Value="{StaticResource SidebarGlyphHoverBrush}"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Rectangle.Style>
+                    </Rectangle>
+                </Grid>
+            </Button>
+        </Grid>
+
+        <TextBlock Grid.Column="2"
+                   Text="Liked"
+                   Foreground="#8C919A"
+                   FontSize="12"
+                   Margin="8,0,0,0"
+                   VerticalAlignment="Center"
+                   HorizontalAlignment="Left"
+                   Style="{StaticResource HeaderOnlyElementStyle}"/>
+
+        <!-- Only the left boundary of the Liked column is draggable. -->
+        <Thumb Grid.Column="2"
+               Tag="Liked"
+               Style="{StaticResource HeaderResizeThumbStyle}"
+               DragDelta="ResizeThumb_DragDelta"/>
+
+        <Grid Grid.Column="2" HorizontalAlignment="Left" Margin="8,0,0,0" Style="{StaticResource DataOnlyElementStyle}">
+            <Button Command="{Binding DataContext.ToggleLikeCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                    CommandParameter="{Binding Song, ElementName=Root}"
+                    ToolTip="Like"
+                    HorizontalAlignment="Left"
+                    VerticalAlignment="Center"
+                    Style="{StaticResource LikeButtonStyle}">
+                <Grid Width="16" Height="16" RenderTransformOrigin="0.5,0.5">
+                    <Grid.RenderTransform>
+                        <ScaleTransform ScaleX="0.9" ScaleY="0.9"/>
+                    </Grid.RenderTransform>
+                    <Rectangle RenderOptions.BitmapScalingMode="Fant" SnapsToDevicePixels="True">
+                        <Rectangle.OpacityMask>
+                            <ImageBrush ImageSource="pack://application:,,,/Resources/Images/heart.png" Stretch="Uniform" RenderOptions.BitmapScalingMode="Fant"/>
+                        </Rectangle.OpacityMask>
+                        <Rectangle.Style>
+                            <Style TargetType="Rectangle">
+                                <Setter Property="Fill" Value="{StaticResource SidebarGlyphBrush}"/>
+                                <Setter Property="Visibility" Value="Visible"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding Song.IsLiked, ElementName=Root}" Value="True">
+                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding IsMouseOver, RelativeSource={RelativeSource AncestorType=Button}}" Value="True">
+                                        <Setter Property="Fill" Value="{StaticResource SidebarGlyphHoverBrush}"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Rectangle.Style>
+                    </Rectangle>
+                    <Rectangle RenderOptions.BitmapScalingMode="Fant" SnapsToDevicePixels="True">
+                        <Rectangle.OpacityMask>
+                            <ImageBrush ImageSource="pack://application:,,,/Resources/Images/heart-filled.png" Stretch="Uniform" RenderOptions.BitmapScalingMode="Fant"/>
+                        </Rectangle.OpacityMask>
+                        <Rectangle.Style>
+                            <Style TargetType="Rectangle">
+                                <Setter Property="Fill" Value="{StaticResource SidebarGlyphBrush}"/>
+                                <Setter Property="Visibility" Value="Collapsed"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding Song.IsLiked, ElementName=Root}" Value="True">
+                                        <Setter Property="Visibility" Value="Visible"/>
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding IsMouseOver, RelativeSource={RelativeSource AncestorType=Button}}" Value="True">
+                                        <Setter Property="Fill" Value="{StaticResource SidebarGlyphHoverBrush}"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Rectangle.Style>
+                    </Rectangle>
+                </Grid>
+            </Button>
+        </Grid>
+
+        <Grid Grid.Column="3"
+              Width="14"
+              Height="14"
+              VerticalAlignment="Center"
+              HorizontalAlignment="Center"
+              Margin="0,0,0,0"
+              SnapsToDevicePixels="True"
+              UseLayoutRounding="True"
+              Style="{StaticResource HeaderOnlyElementStyle}">
+            <Ellipse Stroke="#8C919A"
+                     StrokeThickness="1.2"/>
+            <Line X1="7"
+                  Y1="7"
+                  X2="7"
+                  Y2="3.6"
+                  Stroke="#8C919A"
+                  StrokeThickness="1.2"
+                  StrokeStartLineCap="Round"
+                  StrokeEndLineCap="Round"/>
+            <Line X1="7"
+                  Y1="7"
+                  X2="5.3"
+                  Y2="8.7"
+                  Stroke="#8C919A"
+                  StrokeThickness="1.2"
+                  StrokeStartLineCap="Round"
+                  StrokeEndLineCap="Round"/>
+            <Ellipse Width="1.6"
+                     Height="1.6"
+                     Fill="#8C919A"
+                     HorizontalAlignment="Center"
+                     VerticalAlignment="Center"/>
+        </Grid>
+
+        <TextBlock Grid.Column="3"
+                   Text="{Binding Song.Duration, ElementName=Root}"
+                   Foreground="#8C919A"
+                   FontSize="12.5"
+                   VerticalAlignment="Center"
+                   HorizontalAlignment="Center"
+                   TextAlignment="Center"
+                   Style="{StaticResource DataOnlyElementStyle}"/>
+
+        <Grid Grid.Column="4" Margin="8,0,0,0" Style="{StaticResource DataOnlyElementStyle}">
+            <Button ToolTip="Adjust volume"
+                    Content="🔊"
+                    HorizontalAlignment="Left"
+                    Command="{Binding DataContext.SongVolumeCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                    CommandParameter="{Binding Song, ElementName=Root}"
+                    Style="{StaticResource SongItemActionButtonStyle}"/>
+        </Grid>
+    </Grid>
+</UserControl>

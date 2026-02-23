@@ -18,22 +18,71 @@ using System.Collections.ObjectModel;
 using Mei_Music.Models;
 using Mei_Music.Services;
 using Mei_Music.ViewModels;
+using Newtonsoft.Json;
 
 namespace Mei_Music
 {
+    /// <summary>
+    /// Primary application shell window.
+    /// Coordinates UI interactions, list views, popups, and delegates playback/persistence work to <see cref="MainViewModel"/> and services.
+    /// </summary>
     public partial class MainWindow : Window
     {
+        /// <summary>
+        /// True while a slider is actively dragged by mouse.
+        /// Shared by system volume and song progress sliders.
+        /// </summary>
         private bool isDragging = false;
+
+        /// <summary>
+        /// Slider currently being dragged when <see cref="isDragging"/> is true.
+        /// </summary>
         private Slider? currentSlider;
+
+        /// <summary>
+        /// Active default playback device used to synchronize app volume with system volume.
+        /// </summary>
         private CoreAudioDevice? defaultPlaybackDevice;
+
+        /// <summary>
+        /// Persistence service used by window-level save/load helpers.
+        /// </summary>
         private readonly IFileService fileService;
+
+        /// <summary>
+        /// Sorting service injected for song ordering operations.
+        /// </summary>
         private readonly IPlaylistSortService playlistSortService;
 
+        /// <summary>
+        /// Path to serialized song metadata persisted across sessions.
+        /// </summary>
         private string songDataFilePath = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Mei Music", "songData.json");
+
+        /// <summary>
+        /// Path to serialized user-created playlists.
+        /// </summary>
         private static readonly string PlaylistsFilePath = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Mei Music", "playlists.json");
+
+        /// <summary>
+        /// Directory where playlist icon images are copied and managed.
+        /// </summary>
         private static readonly string PlaylistIconsDirectory = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Mei Music", "playlist-icons");
 
+        /// <summary>
+        /// Path to persisted song-column width layout snapshot.
+        /// </summary>
+        private static readonly string SongColumnLayoutFilePath = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Mei Music", "song-column-layout.json");
+
+        /// <summary>
+        /// Typed accessor to DataContext for view-model command/state access.
+        /// </summary>
         public MainViewModel ViewModel => (MainViewModel)this.DataContext;
+
+        /// <summary>
+        /// Shared mutable song-row column layout state used by header and rows.
+        /// </summary>
+        public SongColumnLayoutState SongColumnLayout { get; } = new SongColumnLayoutState();
 
         /// <summary>List used for Prev/Next and auto-next; set when user starts playing from the list.</summary>
         private IList? _playbackList;
@@ -47,7 +96,13 @@ namespace Mei_Music
         private CreatedPlaylist? _activePlaylist;
         /// <summary>Saved vertical scroll offset for the last viewed playlist.</summary>
         private double _playlistViewScrollOffset;
+        /// <summary>Prevents feedback loops while syncing overlay scrollbar with ListView ScrollViewer.</summary>
+        private bool _isSyncingSongOverlayScrollBar;
 
+        /// <summary>
+        /// Initializes services, loads persisted app state, wires UI events,
+        /// and prepares playback/list controls for first render.
+        /// </summary>
         public MainWindow(MainViewModel viewModel, IFileService fileService, IPlaylistSortService playlistSortService)
         {
             this.fileService = fileService;
@@ -55,10 +110,13 @@ namespace Mei_Music
 
             InitializeComponent();
             this.DataContext = viewModel;
+            ViewModel.PropertyChanged += ViewModel_PropertyChanged;
+            ViewModel.Songs.CollectionChanged += (_, _) => UpdateCurrentSongState();
 
             string audioDirectory = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Mei Music", "playlist");
             Directory.CreateDirectory(audioDirectory);
             Directory.CreateDirectory(PlaylistIconsDirectory);
+            LoadSongColumnLayout();
 
             LoadSongData();
             LoadCreatedPlaylists();
@@ -68,12 +126,13 @@ namespace Mei_Music
 
             UpdateSongIndexes();
 
-
-
-            if (UploadedSongList.SelectedIndex >= 0 && UploadedSongList.SelectedIndex < ViewModel.Songs.Count)
+            if (UploadedSongList.SelectedItem is Song selectedSong)
             {
-                ViewModel.CurrentSong = ViewModel.Songs[UploadedSongList.SelectedIndex];
-                ViewModel.Volume = ViewModel.CurrentSong.Volume;
+                SetCurrentSong(selectedSong);
+            }
+            else
+            {
+                UpdateCurrentSongState();
             }
 
             InitializeMediaPlayer();
@@ -81,6 +140,139 @@ namespace Mei_Music
             CreatePlaylistCard.DragMoveDelta += CreatePlaylistCard_DragMoveDelta;
             ViewModel.CreatedPlaylists.CollectionChanged += (_, _) => UpdatePlaylistSidebarVisibility();
             UpdatePlaylistSidebarVisibility();
+            Loaded += MainWindow_Loaded;
+        }
+
+        /// <summary>
+        /// Reacts to view-model property changes that affect row-level current-song visuals.
+        /// </summary>
+        private void ViewModel_PropertyChanged(object? sender, PropertyChangedEventArgs e)
+        {
+            if (e.PropertyName == nameof(MainViewModel.CurrentSong))
+            {
+                UpdateCurrentSongState();
+            }
+        }
+
+        /// <summary>
+        /// Sets the view-model current song and re-flags row state for now-playing visuals.
+        /// </summary>
+        private void SetCurrentSong(Song song)
+        {
+            ViewModel.CurrentSong = song;
+            UpdateCurrentSongState();
+        }
+
+        /// <summary>
+        /// Synchronizes each song row's IsCurrent flag against <see cref="MainViewModel.CurrentSong"/>.
+        /// Uses reference first and name fallback for deserialized/recreated objects.
+        /// </summary>
+        private void UpdateCurrentSongState()
+        {
+            Song? currentSong = ViewModel.CurrentSong;
+
+            foreach (var song in ViewModel.Songs)
+            {
+                bool isCurrent = currentSong != null && (ReferenceEquals(song, currentSong) || song.Name == currentSong.Name);
+                if (song.IsCurrent != isCurrent)
+                {
+                    song.IsCurrent = isCurrent;
+                }
+            }
+        }
+
+        /// <summary>
+        /// Runs after first visual tree load to compute initial responsive song-column widths.
+        /// </summary>
+        private void MainWindow_Loaded(object sender, RoutedEventArgs e)
+        {
+            UpdateSongColumnLayout();
+        }
+
+        /// <summary>
+        /// Computes available song-list viewport width and updates shared column layout state.
+        /// Also keeps custom overlay scrollbar synchronized with native ScrollViewer metrics.
+        /// </summary>
+        private void UpdateSongColumnLayout()
+        {
+            if (UploadedSongList == null)
+            {
+                return;
+            }
+
+            double viewportWidth = UploadedSongList.ActualWidth;
+            var scrollViewer = FindScrollViewer(UploadedSongList);
+            if (scrollViewer != null && scrollViewer.ViewportWidth > 0)
+            {
+                viewportWidth = scrollViewer.ViewportWidth;
+            }
+
+            SyncSongOverlayScrollBar(scrollViewer);
+
+            SongColumnLayout.UpdateTitleWidth(viewportWidth);
+        }
+
+        /// <summary>
+        /// Re-evaluates column layout whenever the internal list scrolls.
+        /// </summary>
+        private void UploadedSongList_ScrollChanged(object sender, ScrollChangedEventArgs e)
+        {
+            UpdateSongColumnLayout();
+        }
+
+        /// <summary>
+        /// Mirrors ListView ScrollViewer state into a styled overlay scrollbar.
+        /// Guarded by <see cref="_isSyncingSongOverlayScrollBar"/> to prevent recursive updates.
+        /// </summary>
+        private void SyncSongOverlayScrollBar(ScrollViewer? scrollViewer)
+        {
+            if (SongOverlayScrollBar == null)
+            {
+                return;
+            }
+
+            _isSyncingSongOverlayScrollBar = true;
+            try
+            {
+                if (scrollViewer == null)
+                {
+                    SongOverlayScrollBar.Visibility = Visibility.Collapsed;
+                    SongOverlayScrollBar.Maximum = 0;
+                    SongOverlayScrollBar.ViewportSize = 0;
+                    SongOverlayScrollBar.Value = 0;
+                    return;
+                }
+
+                double max = Math.Max(0, scrollViewer.ScrollableHeight);
+                SongOverlayScrollBar.Visibility = max > 0 ? Visibility.Visible : Visibility.Collapsed;
+                SongOverlayScrollBar.Maximum = max;
+                SongOverlayScrollBar.ViewportSize = Math.Max(0, scrollViewer.ViewportHeight);
+                SongOverlayScrollBar.LargeChange = Math.Max(1, scrollViewer.ViewportHeight * 0.9);
+                SongOverlayScrollBar.Value = Math.Clamp(scrollViewer.VerticalOffset, 0, max);
+            }
+            finally
+            {
+                _isSyncingSongOverlayScrollBar = false;
+            }
+        }
+
+        /// <summary>
+        /// Applies user interaction from the overlay scrollbar back to the list ScrollViewer.
+        /// </summary>
+        private void SongOverlayScrollBar_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+        {
+            if (_isSyncingSongOverlayScrollBar)
+            {
+                return;
+            }
+
+            var scrollViewer = FindScrollViewer(UploadedSongList);
+            if (scrollViewer == null)
+            {
+                return;
+            }
+
+            scrollViewer.ScrollToVerticalOffset(e.NewValue);
         }
 
         /// <summary>Loads created playlists from disk into CreatedPlaylists.</summary>
@@ -107,6 +299,9 @@ namespace Mei_Music
             CreatePlaylistOverlay.Visibility = Visibility.Visible;
         }
 
+        /// <summary>
+        /// Moves the create-playlist card within overlay bounds while user drags its header.
+        /// </summary>
         private void CreatePlaylistCard_DragMoveDelta(object? sender, DragMoveDeltaEventArgs e)
         {
             // 1. Calculate the new potential position
@@ -122,6 +317,10 @@ namespace Mei_Music
             CreatePlaylistCardTransform.Y = Math.Clamp(newY, -maxY, maxY);
         }
 
+        /// <summary>
+        /// Handles create-playlist confirmation by constructing playlist model,
+        /// optionally copying selected icon, and delegating creation to the view-model.
+        /// </summary>
         private void CreatePlaylistCard_CreateClicked(object? sender, CreatePlaylistClickedEventArgs e)
         {
             var playlist = new CreatedPlaylist { Title = e.Title };
@@ -146,9 +345,14 @@ namespace Mei_Music
             CreatePlaylistOverlay.Visibility = Visibility.Collapsed;
         }
 
-        // Tracks which playlist the popup is targeting
+        /// <summary>
+        /// Playlist currently targeted by the playlist context menu popup.
+        /// </summary>
         private CreatedPlaylist? _contextMenuTargetPlaylist;
 
+        /// <summary>
+        /// Opens playlist context menu near the right-click position.
+        /// </summary>
         private void PlaylistItem_RightClick(object sender, MouseButtonEventArgs e)
         {
             if (sender is not RadioButton btn) return;
@@ -175,12 +379,18 @@ namespace Mei_Music
             e.Handled = true;
         }
 
+        /// <summary>
+        /// Dismisses playlist context menu overlay.
+        /// </summary>
         private void PlaylistContextMenuDismiss_Click(object sender, MouseButtonEventArgs e)
         {
             PlaylistContextMenuOverlay.Visibility = Visibility.Collapsed;
             _contextMenuTargetPlaylist = null;
         }
 
+        /// <summary>
+        /// Deletes the playlist selected in context menu and restores fallback selection when needed.
+        /// </summary>
         private void ContextMenuDeletePlaylist_Click(object? sender, EventArgs e)
         {
             PlaylistContextMenuOverlay.Visibility = Visibility.Collapsed;
@@ -197,11 +407,188 @@ namespace Mei_Music
             }
         }
 
+        /// <summary>
+        /// Song currently targeted by the song context menu popup.
+        /// </summary>
+        private Song? _contextMenuTargetSong;
+
+        /// <summary>
+        /// Opens the song context popup anchored to the song-row option button.
+        /// </summary>
+        private void SongOptionButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is Button btn && btn.DataContext is Song song)
+            {
+                _contextMenuTargetSong = song;
+                SongContextMenuPopup.Placement = PlacementMode.Bottom;
+                SongContextMenuPopup.PlacementTarget = btn;
+                SongContextMenuPopup.IsOpen = true;
+
+                // Optional: Auto-dismiss when clicking elsewhere natively handled by StaysOpen="False"
+                // But WPF sometimes needs explicit focus to make StaysOpen work
+                btn.Focus();
+            }
+        }
+
+        /// <summary>
+        /// Opens song context popup from <see cref="SongRowView"/> options event.
+        /// </summary>
+        private void SongRow_OptionsRequested(object? sender, SongOptionsRequestedEventArgs e)
+        {
+            _contextMenuTargetSong = e.Song;
+            SongContextMenuPopup.Placement = PlacementMode.Bottom;
+            SongContextMenuPopup.PlacementTarget = e.AnchorElement ?? UploadedSongList;
+            SongContextMenuPopup.IsOpen = true;
+
+            if (e.AnchorElement != null)
+            {
+                e.AnchorElement.Focus();
+            }
+        }
+
+        /// <summary>
+        /// Handles play/pause requests emitted by song-row control.
+        /// Selects the row, then toggles current song or starts requested song.
+        /// </summary>
+        private void SongRow_PlayPauseRequested(object? sender, SongPlayPauseRequestedEventArgs e)
+        {
+            _playbackList = GetCurrentSongList() ?? ViewModel.Songs;
+
+            _suppressSelectionChanged = true;
+            try
+            {
+                UploadedSongList.SelectedItem = e.Song;
+            }
+            finally
+            {
+                _suppressSelectionChanged = false;
+            }
+
+            bool isCurrentSong = ViewModel.CurrentSong != null
+                && (ReferenceEquals(ViewModel.CurrentSong, e.Song) || ViewModel.CurrentSong.Name == e.Song.Name);
+
+            if (isCurrentSong)
+            {
+                ViewModel.TogglePlay();
+                UpdatePlaybackButtonIcon();
+                SaveSongIndex();
+                return;
+            }
+
+            PlaySong(e.Song);
+            SaveSongIndex();
+        }
+
+        /// <summary>
+        /// On right-button press, selects the song row under cursor without triggering playback.
+        /// </summary>
+        private void UploadedSongList_PreviewMouseRightButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            if (e.OriginalSource is not DependencyObject source)
+            {
+                return;
+            }
+
+            var listViewItem = FindVisualParent<ListViewItem>(source);
+            if (listViewItem?.DataContext is not Song song)
+            {
+                return;
+            }
+
+            _suppressSelectionChanged = true;
+            try
+            {
+                UploadedSongList.SelectedItem = song;
+            }
+            finally
+            {
+                _suppressSelectionChanged = false;
+            }
+
+            _contextMenuTargetSong = song;
+        }
+
+        /// <summary>
+        /// Opens song context popup at mouse pointer when right click is released on a song row.
+        /// </summary>
+        private void UploadedSongList_PreviewMouseRightButtonUp(object sender, MouseButtonEventArgs e)
+        {
+            if (e.OriginalSource is not DependencyObject source)
+            {
+                return;
+            }
+
+            var listViewItem = FindVisualParent<ListViewItem>(source);
+            if (listViewItem?.DataContext is not Song song)
+            {
+                return;
+            }
+
+            _contextMenuTargetSong = song;
+            SongContextMenuPopup.Placement = PlacementMode.MousePoint;
+            SongContextMenuPopup.PlacementTarget = UploadedSongList;
+            SongContextMenuPopup.IsOpen = true;
+            UploadedSongList.Focus();
+            e.Handled = true;
+        }
+
+        /// <summary>
+        /// Placeholder action for future "Add to Playlist" workflow.
+        /// </summary>
+        private void SongContextMenu_AddRequested(object? sender, EventArgs e)
+        {
+            SongContextMenuPopup.IsOpen = false;
+            // Existing logic or placeholder for Add to Playlist
+            MessageBox.Show("Add to Playlist feature coming soon!", "Feature", MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+
+        /// <summary>
+        /// Executes rename command for the song currently targeted by context menu.
+        /// </summary>
+        private void SongContextMenu_RenameRequested(object? sender, EventArgs e)
+        {
+            SongContextMenuPopup.IsOpen = false;
+            if (_contextMenuTargetSong != null)
+            {
+                ViewModel.RenameSongCommand.Execute(_contextMenuTargetSong);
+            }
+        }
+
+        /// <summary>
+        /// Executes open-folder command for the song currently targeted by context menu.
+        /// </summary>
+        private void SongContextMenu_OpenFolderRequested(object? sender, EventArgs e)
+        {
+            SongContextMenuPopup.IsOpen = false;
+            if (_contextMenuTargetSong != null)
+            {
+                ViewModel.OpenFolderCommand.Execute(_contextMenuTargetSong);
+            }
+        }
+
+        /// <summary>
+        /// Executes delete command for the song currently targeted by context menu.
+        /// </summary>
+        private void SongContextMenu_DeleteRequested(object? sender, EventArgs e)
+        {
+            SongContextMenuPopup.IsOpen = false;
+            if (_contextMenuTargetSong != null)
+            {
+                ViewModel.DeleteSongCommand.Execute(_contextMenuTargetSong);
+            }
+        }
+
+        /// <summary>
+        /// Closes create-playlist overlay when card emits close event.
+        /// </summary>
         private void CreatePlaylistCard_CloseRequested(object? sender, EventArgs e)
         {
             CreatePlaylistOverlay.Visibility = Visibility.Collapsed;
         }
 
+        /// <summary>
+        /// Closes create-playlist overlay when user clicks dimmed backdrop.
+        /// </summary>
         private void CreatePlaylistOverlayDim_MouseDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
         {
             CreatePlaylistOverlay.Visibility = Visibility.Collapsed;
@@ -236,18 +623,32 @@ namespace Mei_Music
             if (PlaylistHeaderLabel != null)
                 PlaylistHeaderLabel.Content = "All";
 
-            bool switchedToSongs = !ReferenceEquals(UploadedSongList.ItemsSource, ViewModel.Songs);
-            if (switchedToSongs)
-            {
-                UploadedSongList.ItemsSource = ViewModel.Songs;
-            }
-            else
-            {
-                UploadedSongList.Items.Refresh();
-            }
+            bool switchedToSongs = SongDataContainer == null || !ReferenceEquals(SongDataContainer.Collection, ViewModel.Songs);
             _suppressSelectionChanged = true;
-            SyncSelectionToCurrentSong();
-            _suppressSelectionChanged = false;
+            try
+            {
+                if (switchedToSongs)
+                {
+                    if (SongDataContainer != null)
+                    {
+                        SongDataContainer.Collection = ViewModel.Songs;
+                    }
+                    else
+                    {
+                        UploadedSongList.ItemsSource = ViewModel.Songs;
+                    }
+                }
+                else
+                {
+                    UploadedSongList.Items.Refresh();
+                }
+
+                SyncSelectionToCurrentSong();
+            }
+            finally
+            {
+                _suppressSelectionChanged = false;
+            }
 
             if (switchedToSongs)
             {
@@ -265,11 +666,17 @@ namespace Mei_Music
         }
 
         /// <summary>
-        /// Returns the list currently bound to the song list (Songs or LikedSongs), or null.
+        /// Returns the active song list (Songs, LikedSongs, or playlist songs) used by transport/navigation.
+        /// Uses the CompositeCollection container when available so header rows are excluded from indexing.
         /// </summary>
-        private static IList? GetCurrentSongList(ItemsControl listBox)
+        private IList? GetCurrentSongList()
         {
-            return listBox?.ItemsSource as IList;
+            if (SongDataContainer?.Collection is IList listFromContainer)
+            {
+                return listFromContainer;
+            }
+
+            return UploadedSongList?.ItemsSource as IList;
         }
 
         /// <summary>
@@ -294,15 +701,23 @@ namespace Mei_Music
         private void SyncSelectionToCurrentSong()
         {
             if (UploadedSongList == null) return;
-            var list = GetCurrentSongList(UploadedSongList);
+            var list = GetCurrentSongList();
             if (list == null || list.Count == 0) return;
             if (ViewModel.CurrentSong == null)
             {
                 UploadedSongList.SelectedIndex = -1;
                 return;
             }
+
             int index = IndexOfSongInList(list, ViewModel.CurrentSong);
-            UploadedSongList.SelectedIndex = index >= 0 ? index : -1;
+            if (index >= 0 && list[index] is Song visibleSong)
+            {
+                UploadedSongList.SelectedItem = visibleSong;
+            }
+            else
+            {
+                UploadedSongList.SelectedIndex = -1;
+            }
         }
 
         /// <summary>
@@ -323,18 +738,32 @@ namespace Mei_Music
             if (PlaylistHeaderLabel != null)
                 PlaylistHeaderLabel.Content = "Liked";
 
-            bool switchedToLiked = !ReferenceEquals(UploadedSongList.ItemsSource, ViewModel.LikedSongs);
-            if (switchedToLiked)
-            {
-                UploadedSongList.ItemsSource = ViewModel.LikedSongs;
-            }
-            else
-            {
-                UploadedSongList.Items.Refresh();
-            }
+            bool switchedToLiked = SongDataContainer == null || !ReferenceEquals(SongDataContainer.Collection, ViewModel.LikedSongs);
             _suppressSelectionChanged = true;
-            SyncSelectionToCurrentSong();
-            _suppressSelectionChanged = false;
+            try
+            {
+                if (switchedToLiked)
+                {
+                    if (SongDataContainer != null)
+                    {
+                        SongDataContainer.Collection = ViewModel.LikedSongs;
+                    }
+                    else
+                    {
+                        UploadedSongList.ItemsSource = ViewModel.LikedSongs;
+                    }
+                }
+                else
+                {
+                    UploadedSongList.Items.Refresh();
+                }
+
+                SyncSelectionToCurrentSong();
+            }
+            finally
+            {
+                _suppressSelectionChanged = false;
+            }
 
             if (switchedToLiked)
             {
@@ -357,9 +786,11 @@ namespace Mei_Music
             var sv = FindScrollViewer(UploadedSongList);
             if (sv == null) return;
 
-            if (ReferenceEquals(UploadedSongList.ItemsSource, ViewModel.Songs))
+            IEnumerable? currentCollection = SongDataContainer?.Collection;
+
+            if (ReferenceEquals(currentCollection, ViewModel.Songs))
                 _allViewScrollOffset = sv.VerticalOffset;
-            else if (ReferenceEquals(UploadedSongList.ItemsSource, ViewModel.LikedSongs))
+            else if (ReferenceEquals(currentCollection, ViewModel.LikedSongs))
                 _likedViewScrollOffset = sv.VerticalOffset;
             else if (_activePlaylist != null)
                 _playlistViewScrollOffset = sv.VerticalOffset;
@@ -389,13 +820,23 @@ namespace Mei_Music
                     playlistSongs.Add(song);
             }
 
-            UploadedSongList.ItemsSource = playlistSongs;
+            if (SongDataContainer != null)
+            {
+                SongDataContainer.Collection = playlistSongs;
+            }
+            else
+            {
+                UploadedSongList.ItemsSource = playlistSongs;
+            }
 
             _suppressSelectionChanged = true;
             SyncSelectionToCurrentSong();
             _suppressSelectionChanged = false;
         }
 
+        /// <summary>
+        /// Switches right panel to selected playlist when a playlist sidebar item is clicked.
+        /// </summary>
         private void PlaylistItem_Click(object sender, RoutedEventArgs e)
         {
             if (sender is not RadioButton btn) return;
@@ -404,12 +845,18 @@ namespace Mei_Music
             ApplyPlaylistView(playlist);
         }
 
+        /// <summary>
+        /// Sidebar handler that activates the complete songs view.
+        /// </summary>
         private void AllSongsButton_Checked(object sender, RoutedEventArgs e)
         {
             // Keep the right-side list in sync with the selected sidebar scope.
             ApplyAllSongsView();
         }
 
+        /// <summary>
+        /// Sidebar handler that activates the liked songs view.
+        /// </summary>
         private void LikedSongsButton_Checked(object sender, RoutedEventArgs e)
         {
             // This view is scaffolded now; like/unlike wiring will populate it later.
@@ -444,6 +891,9 @@ namespace Mei_Music
             }
         }
 
+        /// <summary>
+        /// Minimal observer adapter used to handle AudioSwitcher volume notifications.
+        /// </summary>
         private class VolumeObserver : IObserver<DeviceVolumeChangedArgs>
         {
             private readonly Action<DeviceVolumeChangedArgs> _onNext;
@@ -472,17 +922,74 @@ namespace Mei_Music
         }
 
         //------------------------- Add Audio Implementation -------------------------------
-        internal void AddSongToList(string name)
+        /// <summary>
+        /// Creates a new song model from imported media and persists updated catalog.
+        /// </summary>
+        internal void AddSongToList(string name, string sourceFilePath)
         {
             var song = new Song
             {
                 Index = (ViewModel.Songs.Count + 1).ToString("D2"),
-                Name = name
+                Name = name,
+                Duration = GetMediaDuration(sourceFilePath)
             };
 
             ViewModel.Songs.Add(song);
             UpdateSongData();
         }
+
+        /// <summary>
+        /// Reads media duration metadata and returns mm:ss format.
+        /// Returns empty string when file is missing or unreadable.
+        /// </summary>
+        private static string GetMediaDuration(string filePath)
+        {
+            if (string.IsNullOrWhiteSpace(filePath) || !File.Exists(filePath))
+            {
+                return string.Empty;
+            }
+
+            try
+            {
+                using var mediaFile = TagLib.File.Create(filePath);
+                return mediaFile.Properties.Duration.ToString(@"mm\:ss");
+            }
+            catch
+            {
+                return string.Empty;
+            }
+        }
+
+        /// <summary>
+        /// Refreshes an existing song's duration after external conversion/import steps.
+        /// </summary>
+        internal void RefreshSongDurationFromFile(string filePath)
+        {
+            string duration = GetMediaDuration(filePath);
+            if (string.IsNullOrWhiteSpace(duration))
+            {
+                return;
+            }
+
+            string fileNameWithoutExtension = Path.GetFileNameWithoutExtension(filePath);
+            if (string.IsNullOrWhiteSpace(fileNameWithoutExtension))
+            {
+                return;
+            }
+
+            Song? song = ViewModel.Songs.FirstOrDefault(s => s.Name == fileNameWithoutExtension);
+            if (song == null || song.Duration == duration)
+            {
+                return;
+            }
+
+            song.Duration = duration;
+            UpdateSongData();
+        }
+
+        /// <summary>
+        /// Removes song metadata entry by name and persists updated catalog.
+        /// </summary>
         private void RemoveSongFromList(string name)
         {
             // Find the song with the specified name in the list
@@ -494,6 +1001,10 @@ namespace Mei_Music
                 UpdateSongData();
             }
         }
+
+        /// <summary>
+        /// Handles local file import (audio direct copy or video-to-audio conversion).
+        /// </summary>
         private void UploadFromComputer_Click(object sender, RoutedEventArgs e)
         {
             OpenFileDialog ofd = new OpenFileDialog
@@ -522,11 +1033,15 @@ namespace Mei_Music
                 else if (fileExtension == ".wav" || fileExtension == ".mp3")
                 {
                     string audioFilePath = System.IO.Path.Combine(outputDirectory, System.IO.Path.GetFileName(selectedFile));
-                    AddFileToUI(audioFilePath);
+                    AddFileToUI(selectedFile);
                     File.Copy(selectedFile, audioFilePath, overwrite: true); // Copy file to output directory
                 }
             }
         }
+
+        /// <summary>
+        /// Opens URL import window for online media download flow.
+        /// </summary>
         private void SearchThroughURL_Click(object sender, RoutedEventArgs e)
         {
             SearchThroughURLWindow window = new SearchThroughURLWindow(this);
@@ -553,6 +1068,10 @@ namespace Mei_Music
             return fullPath;
         }
 
+        /// <summary>
+        /// Converts a video file to MP3 using bundled ffmpeg.
+        /// Returns output audio path when conversion succeeds.
+        /// </summary>
         internal string ConvertVideoToAudio(string videoFilePath) //perform conversion from video to audio
         {
             try
@@ -629,25 +1148,41 @@ namespace Mei_Music
             }
             else //no duplicate
             {
-                AddSongToList(fileNameWithoutExtension); //add the file name of the audio path to the viewport list
+                AddSongToList(fileNameWithoutExtension, filePath); //add the file name of the audio path to the viewport list
             }
         }
+
+        /// <summary>
+        /// Handles duplicate-file "Replace" action by replacing existing song metadata entry.
+        /// </summary>
         private void ReplaceFileInUI(string filePath)
         {
             string fileNameWithoutExtension = System.IO.Path.GetFileNameWithoutExtension(filePath);
             RemoveSongFromList(fileNameWithoutExtension);
-            AddSongToList(fileNameWithoutExtension);
+            AddSongToList(fileNameWithoutExtension, filePath);
         }
+
+        /// <summary>
+        /// Delegates duplicate-file "Rename" action to rename command.
+        /// </summary>
         private void PromptForNewName(string filePath)
         {
             ViewModel.RenameSongCommand.Execute(ViewModel.Songs.FirstOrDefault(s => s.Name == System.IO.Path.GetFileNameWithoutExtension(filePath)) ?? new Song());
         }
+
+        /// <summary>
+        /// Opens add/import popup menu.
+        /// </summary>
         private void PlusButton_Click(object sender, RoutedEventArgs e)
         {
             // Open the dropdown and disable the button
             PlusPopupMenu.IsOpen = true;
             PlusButton.IsEnabled = false;
         }
+
+        /// <summary>
+        /// Opens sorting popup menu.
+        /// </summary>
         private void SortButton_Click(object sender, RoutedEventArgs e)
         {
             SortPopupMenu.IsOpen = true;
@@ -664,14 +1199,25 @@ namespace Mei_Music
         /// </summary>
         private bool PlaySong(Song song)
         {
+            SetCurrentSong(song);
             ViewModel.PlaySong(song);
             UpdatePlaybackButtonIcon();
-            return true;
+            return ViewModel.IsPlaying;
         }
 
         /// <summary>
-        /// Resolves the selected song to an existing local file, updates player state,
-        /// and starts playback while restoring the per-song volume.
+        /// Keeps the shared song row layout in sync with available width.
+        /// Column order is fixed while widths stay user-adjustable.
+        /// </summary>
+        private void SongList_SizeChanged(object sender, SizeChangedEventArgs e)
+        {
+            UpdateSongColumnLayout();
+        }
+
+
+        /// <summary>
+        /// Handles list selection changes without mutating current playback state.
+        /// Selection and playback are intentionally decoupled.
         /// </summary>
         private void PlaySelectedSong(object sender, SelectionChangedEventArgs? e)
         {
@@ -681,39 +1227,28 @@ namespace Mei_Music
             if (UploadedSongList.SelectedItem is not Song selectedSong)
                 return;
 
-            bool isAlreadyPlaying = false;
-            string? songName = selectedSong.Name;
-            if (ViewModel.CurrentSong != null && ViewModel.CurrentSong.Name == songName)
-            {
-                isAlreadyPlaying = true;
-            }
+            _playbackList = GetCurrentSongList() ?? ViewModel.Songs;
 
-            // Sync-only selection (e.g. after tab switch): same song already playing — do not restart.
-            if (isAlreadyPlaying)
-            {
-                return;
-            }
-            else
-            {
-                _playbackList = GetCurrentSongList(UploadedSongList) ?? ViewModel.Songs;
-                PlaySong(selectedSong);
-                SaveSongIndex();
-            }
+            UpdatePlaybackButtonIcon();
+            SaveSongIndex();
         }
-        private T? FindVisualChild<T>(DependencyObject parent, string name) where T : FrameworkElement
+
+        /// <summary>
+        /// Finds the nearest visual parent of the requested type.
+        /// Used for locating ListViewItem from low-level input events.
+        /// </summary>
+        private static T? FindVisualParent<T>(DependencyObject? child) where T : DependencyObject
         {
-            for (int i = 0; i < VisualTreeHelper.GetChildrenCount(parent); i++)
+            while (child != null)
             {
-                var child = VisualTreeHelper.GetChild(parent, i);
-                if (child is T element && element.Name == name)
+                if (child is T parent)
                 {
-                    return element;
+                    return parent;
                 }
 
-                var result = FindVisualChild<T>(child, name);
-                if (result != null)
-                    return result;
+                child = VisualTreeHelper.GetParent(child);
             }
+
             return null;
         }
 
@@ -732,71 +1267,120 @@ namespace Mei_Music
             return null;
         }
 
+        /// <summary>
+        /// Returns the internal ScrollViewer used by the song list control template.
+        /// </summary>
         private static ScrollViewer? FindScrollViewer(ListBox listBox)
         {
             return FindVisualChildByType<ScrollViewer>(listBox);
         }
+
+        /// <summary>
+        /// Moves playback cursor to previous song in the active playback list.
+        /// Wraps to end when currently at first song.
+        /// </summary>
         private void PreviousSongClicked(object sender, RoutedEventArgs e)
         {
-            var list = _playbackList ?? GetCurrentSongList(UploadedSongList) ?? ViewModel.Songs;
+            var list = _playbackList ?? GetCurrentSongList() ?? ViewModel.Songs;
             if (list == null || list.Count == 0) return;
             int currentIndex = IndexOfSongInList(list, ViewModel.CurrentSong);
             if (currentIndex < 0) currentIndex = 0;
             int prevIndex = (currentIndex - 1 + list.Count) % list.Count;
             if (list[prevIndex] is not Song prevSong) return;
             PlaySong(prevSong);
+            _suppressSelectionChanged = true;
             SyncSelectionToCurrentSong();
-            if (ReferenceEquals(GetCurrentSongList(UploadedSongList), _playbackList))
+            _suppressSelectionChanged = false;
+            if (ReferenceEquals(GetCurrentSongList(), _playbackList))
                 SaveSongIndex();
         }
+
+        /// <summary>
+        /// Toggles play/pause for current song, or starts selected song if nothing is current yet.
+        /// </summary>
         private void StopSongClicked(object sender, RoutedEventArgs e)
         {
+            if (ViewModel.CurrentSong == null && UploadedSongList.SelectedItem is Song selectedSong)
+            {
+                _playbackList = GetCurrentSongList() ?? ViewModel.Songs;
+                PlaySong(selectedSong);
+                SaveSongIndex();
+                return;
+            }
+
             ViewModel.TogglePlay();
             UpdatePlaybackButtonIcon();
         }
+
+        /// <summary>
+        /// Moves playback cursor to next song in the active playback list.
+        /// Wraps to beginning after last song.
+        /// </summary>
         private void NextSongClicked(object sender, RoutedEventArgs e)
         {
-            var list = _playbackList ?? GetCurrentSongList(UploadedSongList) ?? ViewModel.Songs;
+            var list = _playbackList ?? GetCurrentSongList() ?? ViewModel.Songs;
             if (list == null || list.Count == 0) return;
             int currentIndex = IndexOfSongInList(list, ViewModel.CurrentSong);
             if (currentIndex < 0) currentIndex = 0;
             int nextIndex = (currentIndex + 1) % list.Count;
             if (list[nextIndex] is not Song nextSong) return;
             PlaySong(nextSong);
+            _suppressSelectionChanged = true;
             SyncSelectionToCurrentSong();
-            if (ReferenceEquals(GetCurrentSongList(UploadedSongList), _playbackList))
+            _suppressSelectionChanged = false;
+            if (ReferenceEquals(GetCurrentSongList(), _playbackList))
                 SaveSongIndex();
         }
 
+        /// <summary>
+        /// Auto-advances playback to next song when current media reaches end.
+        /// </summary>
         private void MediaPlayer_MediaEnded(object? sender, EventArgs e)
         {
-            var list = _playbackList ?? GetCurrentSongList(UploadedSongList) ?? ViewModel.Songs;
+            var list = _playbackList ?? GetCurrentSongList() ?? ViewModel.Songs;
             if (list == null || list.Count == 0) return;
             int currentIndex = IndexOfSongInList(list, ViewModel.CurrentSong);
             if (currentIndex < 0) currentIndex = 0;
             int nextIndex = (currentIndex + 1) % list.Count;
             if (list[nextIndex] is not Song nextSong) return;
             PlaySong(nextSong);
+            _suppressSelectionChanged = true;
             SyncSelectionToCurrentSong();
-            if (ReferenceEquals(GetCurrentSongList(UploadedSongList), _playbackList))
+            _suppressSelectionChanged = false;
+            if (ReferenceEquals(GetCurrentSongList(), _playbackList))
                 SaveSongIndex();
         }
 
 
 
+        /// <summary>
+        /// Persists currently selected song index to user settings.
+        /// </summary>
         private void SaveSongIndex()
         {
-            Properties.Settings.Default.LastSelectedIndex = UploadedSongList.SelectedIndex;
+            var list = GetCurrentSongList() ?? ViewModel.Songs;
+            int selectedSongIndex = IndexOfSongInList(list, UploadedSongList.SelectedItem as Song);
+            Properties.Settings.Default.LastSelectedIndex = selectedSongIndex;
             Properties.Settings.Default.Save();
         }
+
+        /// <summary>
+        /// Restores previously selected song index during startup.
+        /// Selection handler is temporarily detached to avoid side effects while restoring.
+        /// </summary>
         private void LoadSongIndex()
         {
             UploadedSongList.SelectionChanged -= PlaySelectedSong;
 
             int SongIndex = Properties.Settings.Default.LastSelectedIndex;
-            if (SongIndex >= 0 && SongIndex < ViewModel.Songs.Count)
+            var list = GetCurrentSongList() ?? ViewModel.Songs;
+            if (SongIndex >= 0 && SongIndex < list.Count && list[SongIndex] is Song songToSelect)
             {
-                UploadedSongList.SelectedIndex = SongIndex;
+                UploadedSongList.SelectedItem = songToSelect;
+            }
+            else
+            {
+                UploadedSongList.SelectedIndex = -1;
             }
 
             UploadedSongList.SelectionChanged += PlaySelectedSong;
@@ -805,6 +1389,9 @@ namespace Mei_Music
         }
 
         //--------------------------- Slider And Volume ------------------------------------
+        /// <summary>
+        /// Applies requested value to default system playback device when change is significant.
+        /// </summary>
         private void SetSystemVolume(double volume)
         {
             // Helper method to set system volume
@@ -813,19 +1400,31 @@ namespace Mei_Music
                 defaultPlaybackDevice.Volume = volume;
             }
         }
+
+        /// <summary>
+        /// Writes system volume only while user is actively dragging the master volume slider.
+        /// </summary>
         private void VolumeSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
         {
-            if (!isDragging) // Update volume only when not dragging
+            if (isDragging && currentSlider == VolumeSlider)
             {
                 SetSystemVolume(VolumeSlider.Value);
             }
         }
+
+        /// <summary>
+        /// Starts seek interaction and captures mouse for smooth progress dragging.
+        /// </summary>
         private void SongProgressSlider_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
         {
             ViewModel.IsSeeking = true;
             Slider_PreviewMouseLeftButtonDown(sender, e);
             SongProgressSlider.CaptureMouse();
         }
+
+        /// <summary>
+        /// Finishes seek interaction and applies final slider value to playback position.
+        /// </summary>
         private void SongProgressSlider_PreviewMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
         {
             Slider_PreviewMouseLeftButtonUp(sender, e);
@@ -833,6 +1432,10 @@ namespace Mei_Music
             ViewModel.IsSeeking = false;
             SongProgressSlider.ReleaseMouseCapture();
         }
+
+        /// <summary>
+        /// Updates displayed current-time text while progress slider value changes.
+        /// </summary>
         private void SongProgressSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
         {
             if (isDragging || ViewModel.TotalTimeSeconds > 0)
@@ -841,6 +1444,10 @@ namespace Mei_Music
                 ViewModel.CurrentTimeText = currentTime.ToString(@"mm\:ss");
             }
         }
+
+        /// <summary>
+        /// Shared slider drag-start handler used by volume/progress sliders.
+        /// </summary>
         private void Slider_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
         {
             // Event handler for mouse down (start dragging)
@@ -852,6 +1459,10 @@ namespace Mei_Music
                 slider.CaptureMouse(); // Capture the mouse to receive events outside the bounds
             }
         }
+
+        /// <summary>
+        /// Shared slider drag-end handler used by volume/progress sliders.
+        /// </summary>
         private void Slider_PreviewMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
         {
             // Event handler for mouse up (stop dragging)
@@ -859,30 +1470,28 @@ namespace Mei_Music
             currentSlider?.ReleaseMouseCapture();
             currentSlider = null;
         }
+
+        /// <summary>
+        /// Shared slider drag-move handler used by volume/progress sliders.
+        /// </summary>
         private void Slider_MouseMove(object sender, MouseEventArgs e)
         {
             // Event handler for mouse move (dragging)
             if (isDragging && currentSlider != null)
             {
                 MoveSliderToMousePosition(currentSlider, e);
-                if (currentSlider == VolumeSlider)
-                {
-                    // Update volume in real-time as the slider is dragged
-                    SetSystemVolume(VolumeSlider.Value);
-                }
             }
         }
+
+        /// <summary>
+        /// Converts mouse X position to slider value within slider min/max range.
+        /// </summary>
         private void MoveSliderToMousePosition(Slider slider, MouseEventArgs e)
         {
             // Common method to move any slider to the mouse position
             var mousePosition = e.GetPosition(slider);
             double percentage = mousePosition.X / slider.ActualWidth;
             slider.Value = percentage * (slider.Maximum - slider.Minimum) + slider.Minimum;
-            // Update media volume if we're working with VolumeSlider
-            if (slider == VolumeSlider && defaultPlaybackDevice != null)
-            {
-                SetSystemVolume(slider.Value);
-            }
         }
 
         //----------------------------------------------------------------------------------
@@ -895,8 +1504,22 @@ namespace Mei_Music
 
 
         //------------------------- Manage Close Drop Down ---------------------------------
+        /// <summary>
+        /// Global click handler that dismisses popups/menus when user clicks outside them.
+        /// </summary>
         private void OnMainWindowPreviewMouseDown(object sender, MouseButtonEventArgs e)
         {
+            if (SongContextMenuPopup.IsOpen && !SongContextMenu.IsMouseOver)
+            {
+                SongContextMenuPopup.IsOpen = false;
+            }
+
+            if (PlaylistContextMenuOverlay.Visibility == Visibility.Visible && !PlaylistContextMenuCard.IsMouseOver)
+            {
+                PlaylistContextMenuOverlay.Visibility = Visibility.Collapsed;
+                _contextMenuTargetPlaylist = null;
+            }
+
             // Close the Popup if the click is outside the Popup
             if (PlusPopupMenu.IsOpen && !PlusPopupMenu.IsMouseOver)
             {
@@ -909,6 +1532,10 @@ namespace Mei_Music
                 SortButton.IsEnabled = true;
             }
         }
+
+        /// <summary>
+        /// Closes transient popups when app loses focus.
+        /// </summary>
         private void Window_Deactivated(object sender, EventArgs e)
         {
             // Close the dropdown if the application loses focus
@@ -923,6 +1550,10 @@ namespace Mei_Music
                 SortButton.IsEnabled = true;
             }
         }
+
+        /// <summary>
+        /// Persists provided song list snapshot to disk through file service.
+        /// </summary>
         private void SaveSongData(List<Song> songs)
         {
             try
@@ -934,6 +1565,85 @@ namespace Mei_Music
                 MessageBox.Show($"Error saving song data: {ex.Message}");
             }
         }
+
+        /// <summary>
+        /// Serializable DTO for persisting user-customized song column widths.
+        /// </summary>
+        private sealed class SongColumnLayoutSnapshot
+        {
+            public double IndexWidth { get; set; } = SongColumnLayoutState.IndexDefaultWidth;
+            public double OptionsWidth { get; set; } = SongColumnLayoutState.OptionsDefaultWidth;
+            public double LikedWidth { get; set; } = SongColumnLayoutState.LikedDefaultWidth;
+            public double VolumeWidth { get; set; } = SongColumnLayoutState.VolumeDefaultWidth;
+            public double TimeWidth { get; set; } = SongColumnLayoutState.TimeDefaultWidth;
+        }
+
+        /// <summary>
+        /// Loads persisted song-column widths from disk and applies them to shared layout state.
+        /// </summary>
+        private void LoadSongColumnLayout()
+        {
+            try
+            {
+                if (!File.Exists(SongColumnLayoutFilePath))
+                {
+                    return;
+                }
+
+                string json = File.ReadAllText(SongColumnLayoutFilePath);
+                var snapshot = JsonConvert.DeserializeObject<SongColumnLayoutSnapshot>(json);
+                if (snapshot == null)
+                {
+                    return;
+                }
+
+                SongColumnLayout.ApplyFixedWidths(
+                    snapshot.IndexWidth,
+                    snapshot.OptionsWidth,
+                    snapshot.LikedWidth,
+                    snapshot.VolumeWidth,
+                    snapshot.TimeWidth);
+            }
+            catch
+            {
+                // Non-critical: fall back to defaults when loading custom column widths fails.
+            }
+        }
+
+        /// <summary>
+        /// Persists current song-column width configuration to disk.
+        /// </summary>
+        private void SaveSongColumnLayout()
+        {
+            try
+            {
+                string? parentDirectory = Path.GetDirectoryName(SongColumnLayoutFilePath);
+                if (!string.IsNullOrWhiteSpace(parentDirectory))
+                {
+                    Directory.CreateDirectory(parentDirectory);
+                }
+
+                var snapshot = new SongColumnLayoutSnapshot
+                {
+                    IndexWidth = SongColumnLayout.IndexWidthValue,
+                    OptionsWidth = SongColumnLayout.OptionsWidthValue,
+                    LikedWidth = SongColumnLayout.LikedWidthValue,
+                    VolumeWidth = SongColumnLayout.VolumeWidthValue,
+                    TimeWidth = SongColumnLayout.TimeWidthValue
+                };
+
+                string json = JsonConvert.SerializeObject(snapshot, Formatting.Indented);
+                File.WriteAllText(SongColumnLayoutFilePath, json);
+            }
+            catch
+            {
+                // Non-critical: failing to persist custom column widths should not block app close.
+            }
+        }
+
+        /// <summary>
+        /// Loads songs from persistent storage and rebuilds liked-song projection.
+        /// </summary>
         private void LoadSongData()
         {
             try
@@ -961,11 +1671,18 @@ namespace Mei_Music
             }
         }
 
+        /// <summary>
+        /// Re-indexes songs and saves updated song metadata to disk.
+        /// </summary>
         private void UpdateSongData()
         {
             UpdateSongIndexes();
             SaveSongData(ViewModel.Songs.ToList());  // Save the current Songs collection to the JSON file
         }
+
+        /// <summary>
+        /// Recomputes song display indexes (01, 02, ...) from current in-memory order.
+        /// </summary>
         private void UpdateSongIndexes()
         {
             int indexCounter = 1;
@@ -976,17 +1693,23 @@ namespace Mei_Music
             }
         }
 
+        /// <summary>
+        /// Double-click/row-click handler that starts playback from clicked song.
+        /// </summary>
         private void SongItem_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
         {
             if (sender is FrameworkElement fe && fe.DataContext is Song song)
             {
-                _playbackList = GetCurrentSongList(UploadedSongList) ?? ViewModel.Songs;
+                _playbackList = GetCurrentSongList() ?? ViewModel.Songs;
                 PlaySong(song);
                 SaveSongIndex();
             }
         }
 
         //------------------------- Icon bar implementation --------------------------------
+        /// <summary>
+        /// Enables click-and-drag window movement from custom title bar and dismisses context menu.
+        /// </summary>
         private void TitleBar_MouseDown(object sender, MouseButtonEventArgs e)
         {
             // Dismiss the custom context menu if open
@@ -1000,10 +1723,18 @@ namespace Mei_Music
                 this.DragMove();
             }
         }
+
+        /// <summary>
+        /// Minimizes window.
+        /// </summary>
         private void Minimize_Click(object sender, RoutedEventArgs e)
         {
             this.WindowState = WindowState.Minimized;
         }
+
+        /// <summary>
+        /// Toggles maximize/restore window state.
+        /// </summary>
         private void Maximize_Click(object sender, RoutedEventArgs e)
         {
             if (this.WindowState == WindowState.Maximized)
@@ -1011,18 +1742,28 @@ namespace Mei_Music
             else
                 this.WindowState = WindowState.Maximized;
         }
+
+        /// <summary>
+        /// Persists state and closes window from custom close button.
+        /// </summary>
         private void Close_Click(object sender, RoutedEventArgs e)
         {
             SaveSongIndex(); // Save before closing
+            SaveSongColumnLayout();
             ViewModel.SaveSongData();
 
             this.Close();
         }
+
+        /// <summary>
+        /// Ensures indexes, layout, and song metadata are persisted during window close lifecycle.
+        /// </summary>
         protected override void OnClosing(CancelEventArgs e)
         {
             base.OnClosing(e);
 
             SaveSongIndex();
+            SaveSongColumnLayout();
             ViewModel.SaveSongData();
         }
 

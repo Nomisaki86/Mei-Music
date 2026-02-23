@@ -6,10 +6,15 @@ using System.Linq;
 
 namespace Mei_Music.Services
 {
+    /// <summary>
+    /// Default sorting strategy provider for song lists.
+    /// Returns new lists so callers can choose when to replace bound collections.
+    /// </summary>
     public class PlaylistSortService : IPlaylistSortService
     {
         /// <summary>
         /// Returns a new list sorted by song name in ascending order.
+        /// Uses .NET's default string ordering behavior for the current culture.
         /// </summary>
         public List<Song> SortAlphabetically(IList<Song> songs)
         {
@@ -20,6 +25,7 @@ namespace Mei_Music.Services
 
         /// <summary>
         /// Sorts by newest file update time first, checking mp3 then wav.
+        /// Songs with missing files are treated as oldest and placed near the end.
         /// </summary>
         public List<Song> SortByModificationDate(IList<Song> songs, string outputDirectory)
         {

@@ -1,6 +1,16 @@
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
+    <!--
+        Shared button styles used across the application.
+        Structure:
+        1) low-level primitives (repeat button template)
+        2) generic base button + functional variants
+        3) title-bar specific styles
+        4) dialog button style
+    -->
+
+    <!-- Primitive transparent RepeatButton template used by slider tracks. -->
     <Style x:Key="RepeatButtonTransparent" TargetType="{x:Type RepeatButton}">
         <Setter Property="OverridesDefaultStyle" Value="true"/>
         <Setter Property="Background" Value="Transparent"/>
@@ -15,7 +25,7 @@
         </Setter>
     </Style>
 
-    <!-- Shared button foundation and variants -->
+    <!-- Shared button foundation and reusable variants. -->
     <Style x:Key="BaseButtonStyle" TargetType="Button">
         <Setter Property="Background" Value="Transparent"/>
         <Setter Property="Foreground" Value="Black"/>
@@ -127,7 +137,7 @@
         </Style.Triggers>
     </Style>
 
-    <!-- Title Bar -->
+    <!-- Title-bar button variants for dark and light caption bars. -->
     <Style x:Key="TitleBarButtonStyle" TargetType="Button" BasedOn="{StaticResource BaseButtonStyle}">
         <Setter Property="Foreground" Value="White"/>
         <Setter Property="FontSize" Value="14"/>
@@ -186,6 +196,7 @@
         </Style.Triggers>
     </Style>
 
+    <!-- Generic confirmation/cancel buttons used in modal dialogs. -->
     <Style x:Key="DialogButtonStyle" TargetType="Button" BasedOn="{StaticResource BaseButtonStyle}">
         <Setter Property="MinWidth" Value="80"/>
         <Setter Property="Height" Value="26"/>

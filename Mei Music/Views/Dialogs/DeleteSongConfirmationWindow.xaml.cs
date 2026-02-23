@@ -15,12 +15,19 @@ using System.Windows.Shapes;
 namespace Mei_Music
 {
     /// <summary>
-    /// Interaction logic for DeleteSongConfirmationWindow.xaml
+    /// Confirmation dialog used before deleting a song from library and disk.
+    /// Encapsulates a yes/no decision and exposes result through <see cref="IsConfirmed"/>.
     /// </summary>
     public partial class DeleteSongConfirmationWindow : Window
     {
+        /// <summary>
+        /// True when user confirms deletion; false when canceled/declined.
+        /// </summary>
         public bool IsConfirmed { get; private set; }
 
+        /// <summary>
+        /// Initializes dialog and sets message text shown to the user.
+        /// </summary>
         public DeleteSongConfirmationWindow(string message)
         {
             InitializeComponent();
@@ -28,12 +35,18 @@ namespace Mei_Music
             IsConfirmed = false;
         }
 
+        /// <summary>
+        /// Handles Yes action by marking confirmation and closing dialog.
+        /// </summary>
         private void YesButton_Click(object sender, RoutedEventArgs e)
         {
             IsConfirmed = true;
             this.Close();
         }
 
+        /// <summary>
+        /// Handles No action by clearing confirmation and closing dialog.
+        /// </summary>
         private void NoButton_Click(object sender, RoutedEventArgs e)
         {
             IsConfirmed = false;

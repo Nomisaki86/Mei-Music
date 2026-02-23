@@ -6,10 +6,20 @@ using Mei_Music.ViewModels;
 
 namespace Mei_Music
 {
+    /// <summary>
+    /// Application entry point for Mei Music.
+    /// Builds the dependency-injection host and owns host start/stop lifecycle.
+    /// </summary>
     public partial class App : Application
     {
+        /// <summary>
+        /// Generic host that provides dependency injection and service lifetime management.
+        /// </summary>
         private IHost _host;
 
+        /// <summary>
+        /// Configures all app services, view-models, and root windows.
+        /// </summary>
         public App()
         {
             _host = Host.CreateDefaultBuilder()
@@ -30,6 +40,9 @@ namespace Mei_Music
                 .Build();
         }
 
+        /// <summary>
+        /// Starts background services and opens the application's main window.
+        /// </summary>
         protected override async void OnStartup(StartupEventArgs e)
         {
             await _host.StartAsync();
@@ -40,6 +53,9 @@ namespace Mei_Music
             base.OnStartup(e);
         }
 
+        /// <summary>
+        /// Gracefully stops hosted services when the application exits.
+        /// </summary>
         protected override async void OnExit(ExitEventArgs e)
         {
             using (_host)

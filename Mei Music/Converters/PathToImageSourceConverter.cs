@@ -12,6 +12,10 @@ namespace Mei_Music.Converters
     /// </summary>
     public class PathToImageSourceConverter : IValueConverter
     {
+        /// <summary>
+        /// Converts an image file path into a loaded <see cref="BitmapImage"/> for binding.
+        /// Returns null if path is invalid, missing, or loading fails.
+        /// </summary>
         public object? Convert(object value, Type targetType, object parameter, CultureInfo culture)
         {
             if (value is not string path || string.IsNullOrWhiteSpace(path) || !File.Exists(path))
@@ -32,6 +36,9 @@ namespace Mei_Music.Converters
             }
         }
 
+        /// <summary>
+        /// Not supported because this converter is one-way from path to image source.
+        /// </summary>
         public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
             => throw new NotImplementedException();
     }

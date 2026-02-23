@@ -17,17 +17,28 @@ using System.Windows.Shapes;
 namespace Mei_Music
 {
     /// <summary>
-    /// Interaction logic for SearchThroughURLWindow.xaml
+    /// Secondary window that imports media from online URLs.
+    /// Coordinates yt-dlp/ffmpeg tool execution and reports resulting files back to <see cref="MainWindow"/>.
     /// </summary>
     public partial class SearchThroughURLWindow : Window
     {
+        /// <summary>
+        /// Host main window used to register imported media in the song list.
+        /// </summary>
         MainWindow mainWindow;
 
+        /// <summary>
+        /// Creates URL import window and stores callback target to main window.
+        /// </summary>
         public SearchThroughURLWindow(MainWindow main_Window)
         {
             InitializeComponent();
             mainWindow = main_Window;
         }
+
+        /// <summary>
+        /// Hides placeholder when URL input receives focus while empty.
+        /// </summary>
         private void RemovePlaceholderText(object sender, RoutedEventArgs e)
         {
             if (SearchTextBox.Text == "")
@@ -35,6 +46,10 @@ namespace Mei_Music
                 PlaceholderText.Visibility = Visibility.Collapsed;
             }
         }
+
+        /// <summary>
+        /// Restores placeholder when URL input loses focus and remains empty.
+        /// </summary>
         private void AddPlaceholderText(object sender, RoutedEventArgs e)
         {
             if (SearchTextBox.Text == "")
@@ -241,7 +256,11 @@ namespace Mei_Music
                 if (File.Exists(finalVideoPath))
                 {
                     mainWindow.AddFileToUI(finalVideoPath);
-                    await Task.Run(() => ConvertVideoToAudio(finalVideoPath));
+                    string convertedAudioPath = await Task.Run(() => ConvertVideoToAudio(finalVideoPath));
+                    if (!string.IsNullOrWhiteSpace(convertedAudioPath))
+                    {
+                        mainWindow.RefreshSongDurationFromFile(convertedAudioPath);
+                    }
                 }
             }
             catch (Exception ex)
@@ -254,8 +273,9 @@ namespace Mei_Music
             }
         }
 
-
-
+        /// <summary>
+        /// Hides progress indicators after URL-import work completes or fails.
+        /// </summary>
         private void HideProcessingUI()
         {
             Dispatcher.Invoke(() =>
@@ -393,6 +413,10 @@ namespace Mei_Music
             return true; // indicate success
         }
 
+        /// <summary>
+        /// Utility watchdog that can terminate a process when too many files appear in temp folder.
+        /// Reserved for defensive download constraints.
+        /// </summary>
         private async Task MonitorDirectoryForFileLimit(string directory, Process process, int maxFiles)
         {
             try
@@ -415,6 +439,10 @@ namespace Mei_Music
                 MessageBox.Show($"Error while monitoring files: {ex.Message}");
             }
         }
+
+        /// <summary>
+        /// Replaces invalid filename characters with underscores.
+        /// </summary>
         private string SanitizeFileName(string fileName)
         {
             foreach (char c in System.IO.Path.GetInvalidFileNameChars())
@@ -423,6 +451,10 @@ namespace Mei_Music
             }
             return fileName;
         }
+
+        /// <summary>
+        /// Muxes downloaded video and audio streams into one MP4 file using ffmpeg stream copy.
+        /// </summary>
         private void CombineVideoAndAudio(string videoPath, string audioPath, string outputPath)
         {
             string? ffmpegPath = GetToolPath(@"Resources\ffmpeg\ffmpeg.exe");
@@ -562,6 +594,10 @@ namespace Mei_Music
                 throw;
             }
         }
+
+        /// <summary>
+        /// Prompts user for output filename and sanitizes invalid characters.
+        /// </summary>
         private string PromptForFileName()
         {
             string input = Microsoft.VisualBasic.Interaction.InputBox(
@@ -576,6 +612,9 @@ namespace Mei_Music
         }
 
         //------------------------- Icon bar implementation --------------------------------
+        /// <summary>
+        /// Enables drag-move from custom title bar area.
+        /// </summary>
         private void TitleBar_MouseDown(object sender, MouseButtonEventArgs e)
         {
             if (e.ChangedButton == MouseButton.Left)
@@ -583,10 +622,18 @@ namespace Mei_Music
                 this.DragMove();
             }
         }
+
+        /// <summary>
+        /// Minimizes URL import window.
+        /// </summary>
         private void Minimize_Click(object sender, RoutedEventArgs e)
         {
             this.WindowState = WindowState.Minimized;
         }
+
+        /// <summary>
+        /// Toggles maximize/restore state for URL import window.
+        /// </summary>
         private void Maximize_Click(object sender, RoutedEventArgs e)
         {
             if (this.WindowState == WindowState.Maximized)
@@ -594,6 +641,10 @@ namespace Mei_Music
             else
                 this.WindowState = WindowState.Maximized;
         }
+
+        /// <summary>
+        /// Closes URL import window.
+        /// </summary>
         private void Close_Click(object sender, RoutedEventArgs e)
         {
             this.Close();
