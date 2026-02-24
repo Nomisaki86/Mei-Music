@@ -16,11 +16,13 @@
             <Button x:Name="AddToPlaylistButton" Click="AddToPlaylistButton_Click"
                     Style="{StaticResource ContextMenuCardActionButtonStyle}">
                 <StackPanel Style="{StaticResource ContextMenuCardRowLayoutStyle}">
-                    <Rectangle Style="{StaticResource ContextMenuCardGlyphRectangleStyle}">
+                    <Rectangle Width="20"
+                               Height="20"
+                               Style="{StaticResource ContextMenuCardGlyphRectangleStyle}">
                         <Rectangle.OpacityMask>
                             <ImageBrush ImageSource="/Resources/Images/add-list.png"
                                         Stretch="Uniform"
-                                        RenderOptions.BitmapScalingMode="Fant"/>
+                                        RenderOptions.BitmapScalingMode="HighQuality"/>
                         </Rectangle.OpacityMask>
                     </Rectangle>
                     <TextBlock Text="Add to Playlist"
@@ -32,7 +34,15 @@
             <Button x:Name="AdjustVolumeButton" Click="AdjustVolumeButton_Click"
                     Style="{StaticResource ContextMenuCardActionButtonStyle}">
                 <StackPanel Style="{StaticResource ContextMenuCardRowLayoutStyle}">
-                    <TextBlock Text="🔊" Style="{StaticResource ContextMenuCardGlyphTextStyle}"/>
+                    <Rectangle Width="18"
+                               Height="18"
+                               Style="{StaticResource ContextMenuCardGlyphRectangleStyle}">
+                        <Rectangle.OpacityMask>
+                            <ImageBrush ImageSource="/Resources/Images/SongRow/volume.png"
+                                        Stretch="Uniform"
+                                        RenderOptions.BitmapScalingMode="HighQuality"/>
+                        </Rectangle.OpacityMask>
+                    </Rectangle>
                     <TextBlock Text="Adjust Volume"
                                Style="{StaticResource ContextMenuCardLabelStyle}"/>
                 </StackPanel>
@@ -46,7 +56,7 @@
                         <Rectangle.OpacityMask>
                             <ImageBrush ImageSource="/Resources/Images/edit.png"
                                         Stretch="Uniform"
-                                        RenderOptions.BitmapScalingMode="Fant"/>
+                                        RenderOptions.BitmapScalingMode="HighQuality"/>
                         </Rectangle.OpacityMask>
                     </Rectangle>
                     <TextBlock Text="Rename Song"
@@ -62,7 +72,7 @@
                         <Rectangle.OpacityMask>
                             <ImageBrush ImageSource="/Resources/Images/folder.png"
                                         Stretch="Uniform"
-                                        RenderOptions.BitmapScalingMode="Fant"/>
+                                        RenderOptions.BitmapScalingMode="HighQuality"/>
                         </Rectangle.OpacityMask>
                     </Rectangle>
                     <TextBlock Text="Open in Folder"
@@ -81,7 +91,7 @@
                         <Rectangle.OpacityMask>
                             <ImageBrush ImageSource="/Resources/Images/delete.png"
                                         Stretch="Uniform"
-                                        RenderOptions.BitmapScalingMode="Fant"/>
+                                        RenderOptions.BitmapScalingMode="HighQuality"/>
                         </Rectangle.OpacityMask>
                     </Rectangle>
                     <TextBlock Text="Delete Song"

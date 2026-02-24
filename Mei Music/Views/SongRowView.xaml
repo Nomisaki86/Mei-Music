@@ -272,7 +272,7 @@
                     Style="{StaticResource SongIndexPlayPauseButtonStyle}">
                 <Image Width="13"
                        Height="13"
-                       RenderOptions.BitmapScalingMode="Fant"
+                       RenderOptions.BitmapScalingMode="HighQuality"
                        SnapsToDevicePixels="True">
                     <Image.Style>
                         <Style TargetType="Image">
@@ -321,13 +321,13 @@
                         <Grid.RenderTransform>
                             <ScaleTransform ScaleX="0.9" ScaleY="0.9"/>
                         </Grid.RenderTransform>
-                        <Rectangle RenderOptions.BitmapScalingMode="Fant"
+                        <Rectangle RenderOptions.BitmapScalingMode="HighQuality"
                                    SnapsToDevicePixels="True"
                                    Fill="{StaticResource SidebarGlyphBrush}">
                             <Rectangle.OpacityMask>
                                 <ImageBrush ImageSource="/Resources/Images/option.png"
                                             Stretch="Uniform"
-                                            RenderOptions.BitmapScalingMode="Fant"/>
+                                            RenderOptions.BitmapScalingMode="HighQuality"/>
                             </Rectangle.OpacityMask>
                             <Rectangle.Style>
                                 <Style TargetType="Rectangle">
@@ -370,9 +370,9 @@
                     <Grid.RenderTransform>
                         <ScaleTransform ScaleX="0.9" ScaleY="0.9"/>
                     </Grid.RenderTransform>
-                    <Rectangle RenderOptions.BitmapScalingMode="Fant" SnapsToDevicePixels="True">
+                    <Rectangle RenderOptions.BitmapScalingMode="HighQuality" SnapsToDevicePixels="True">
                         <Rectangle.OpacityMask>
-                            <ImageBrush ImageSource="/Resources/Images/heart.png" Stretch="Uniform" RenderOptions.BitmapScalingMode="Fant"/>
+                            <ImageBrush ImageSource="/Resources/Images/heart.png" Stretch="Uniform" RenderOptions.BitmapScalingMode="HighQuality"/>
                         </Rectangle.OpacityMask>
                         <Rectangle.Style>
                             <Style TargetType="Rectangle">
@@ -389,9 +389,9 @@
                             </Style>
                         </Rectangle.Style>
                     </Rectangle>
-                    <Rectangle RenderOptions.BitmapScalingMode="Fant" SnapsToDevicePixels="True">
+                    <Rectangle RenderOptions.BitmapScalingMode="HighQuality" SnapsToDevicePixels="True">
                         <Rectangle.OpacityMask>
-                            <ImageBrush ImageSource="/Resources/Images/heart-filled.png" Stretch="Uniform" RenderOptions.BitmapScalingMode="Fant"/>
+                            <ImageBrush ImageSource="/Resources/Images/heart-filled.png" Stretch="Uniform" RenderOptions.BitmapScalingMode="HighQuality"/>
                         </Rectangle.OpacityMask>
                         <Rectangle.Style>
                             <Style TargetType="Rectangle">

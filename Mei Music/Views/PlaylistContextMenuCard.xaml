@@ -21,7 +21,7 @@
                         <Rectangle.OpacityMask>
                             <ImageBrush ImageSource="/Resources/Images/delete.png"
                                         Stretch="Uniform"
-                                        RenderOptions.BitmapScalingMode="Fant"/>
+                                        RenderOptions.BitmapScalingMode="HighQuality"/>
                         </Rectangle.OpacityMask>
                     </Rectangle>
                     <TextBlock Text="Delete Playlist"

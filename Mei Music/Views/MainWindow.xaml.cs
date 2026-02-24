@@ -371,6 +371,29 @@ namespace Mei_Music
         private static readonly Size SongContextMenuFallbackSize = new Size(190, 250);
 
         /// <summary>
+        /// Rounds a point to the nearest physical pixel for the current visual's DPI scale.
+        /// Prevents fractional placement that can soften text and glyph edges.
+        /// </summary>
+        private static Point SnapPointToDevicePixels(Point point, Visual visual)
+        {
+            var source = PresentationSource.FromVisual(visual);
+            if (source?.CompositionTarget == null)
+            {
+                return new Point(Math.Round(point.X), Math.Round(point.Y));
+            }
+
+            Matrix toDevice = source.CompositionTarget.TransformToDevice;
+            double x = toDevice.M11 > 0
+                ? Math.Round(point.X * toDevice.M11) / toDevice.M11
+                : Math.Round(point.X);
+            double y = toDevice.M22 > 0
+                ? Math.Round(point.Y * toDevice.M22) / toDevice.M22
+                : Math.Round(point.Y);
+
+            return new Point(x, y);
+        }
+
+        /// <summary>
         /// Shared host helper used by both song/playlist context cards.
         /// </summary>
         private static void ShowContextMenuCard(Grid overlay, FrameworkElement card, double left, double top)
@@ -410,7 +433,8 @@ namespace Mei_Music
             left = Math.Clamp(left, windowPadding, maxLeft);
             top = Math.Clamp(top, windowPadding, maxTop);
 
-            ShowContextMenuCard(overlay, card, left, top);
+            Point snappedMenuOrigin = SnapPointToDevicePixels(new Point(left, top), overlay);
+            ShowContextMenuCard(overlay, card, snappedMenuOrigin.X, snappedMenuOrigin.Y);
         }
 
         /// <summary>

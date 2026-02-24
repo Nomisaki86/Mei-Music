@@ -26,6 +26,7 @@
     <None Remove="Resources\Images\close.png" />
     <None Remove="Resources\Images\SongRow\pause.png" />
     <None Remove="Resources\Images\SongRow\play.png" />
+    <None Remove="Resources\Images\SongRow\volume.png" />
   </ItemGroup>
 
   <ItemGroup>
@@ -59,6 +60,7 @@
     <Resource Include="Resources\Images\close.png" />
     <Resource Include="Resources\Images\SongRow\pause.png" />
     <Resource Include="Resources\Images\SongRow\play.png" />
+    <Resource Include="Resources\Images\SongRow\volume.png" />
   </ItemGroup>
 
   <ItemGroup>

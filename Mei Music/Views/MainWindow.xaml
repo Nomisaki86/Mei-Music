@@ -92,13 +92,13 @@
                             <Rectangle Width="16"
                                        Height="16"
                                        Fill="{StaticResource SidebarGlyphBrush}"
-                                       RenderOptions.BitmapScalingMode="Fant"
+                                       RenderOptions.BitmapScalingMode="HighQuality"
                                        SnapsToDevicePixels="True"
                                        UseLayoutRounding="True">
                                 <Rectangle.OpacityMask>
                                     <ImageBrush ImageSource="/Resources/Images/music-player.png"
                                                 Stretch="Uniform"
-                                                RenderOptions.BitmapScalingMode="Fant"/>
+                                                RenderOptions.BitmapScalingMode="HighQuality"/>
                                 </Rectangle.OpacityMask>
                             </Rectangle>
                         </RadioButton.Tag>
@@ -118,7 +118,7 @@
                             <Rectangle Width="16"
                                        Height="16"
                                        Fill="{StaticResource SidebarGlyphBrush}"
-                                       RenderOptions.BitmapScalingMode="Fant"
+                                       RenderOptions.BitmapScalingMode="HighQuality"
                                        SnapsToDevicePixels="True"
                                        UseLayoutRounding="True"
                                        RenderTransformOrigin="0.5,0.5">
@@ -128,7 +128,7 @@
                                 <Rectangle.OpacityMask>
                                     <ImageBrush ImageSource="/Resources/Images/heart-filled.png"
                                                 Stretch="Uniform"
-                                                RenderOptions.BitmapScalingMode="Fant"/>
+                                                RenderOptions.BitmapScalingMode="HighQuality"/>
                                 </Rectangle.OpacityMask>
                             </Rectangle>
                         </RadioButton.Tag>
@@ -170,12 +170,12 @@
                                                                    Margin="6,1,0,0"
                                                                    VerticalAlignment="Center"
                                                                    Fill="{TemplateBinding Foreground}"
-                                                                   RenderOptions.BitmapScalingMode="Fant"
+                                                                   RenderOptions.BitmapScalingMode="HighQuality"
                                                                    SnapsToDevicePixels="True">
                                                             <Rectangle.OpacityMask>
                                                                 <ImageBrush ImageSource="/Resources/Images/arrow-up.png"
                                                                             Stretch="Uniform"
-                                                                            RenderOptions.BitmapScalingMode="Fant"/>
+                                                                            RenderOptions.BitmapScalingMode="HighQuality"/>
                                                             </Rectangle.OpacityMask>
                                                         </Rectangle>
                                                     </StackPanel>
@@ -187,7 +187,7 @@
                                                             <Setter.Value>
                                                                 <ImageBrush ImageSource="/Resources/Images/arrow-down.png"
                                                                             Stretch="Uniform"
-                                                                            RenderOptions.BitmapScalingMode="Fant"/>
+                                                                            RenderOptions.BitmapScalingMode="HighQuality"/>
                                                             </Setter.Value>
                                                         </Setter>
                                                     </Trigger>
@@ -533,7 +533,7 @@
                             x:Name="StopSongButton"
                             Click="StopSongClicked"
                             Margin="2,0,2,0"
-                            RenderOptions.BitmapScalingMode="Fant"
+                            RenderOptions.BitmapScalingMode="HighQuality"
                             HorizontalAlignment="Left" Style="{StaticResource TransportControlButtonStyle}">
                         <Image Source="/Resources/Images/pause_button.png" Width="35" Height="35"/>
                     </Button>
@@ -575,8 +575,23 @@
                         <Label x:Name="SongLength_Timer" Grid.Column="2" Content="{Binding TotalTimeText}" Margin="5,0,0,0"/>
                     </Grid>
 
-                    <Label Grid.Column="5" HorizontalAlignment="Right" VerticalAlignment="Center" 
-                           Content="🔊"/>
+                    <Grid Grid.Column="5"
+                          Width="16"
+                          Height="16"
+                          Margin="0,0,3,0"
+                          HorizontalAlignment="Right"
+                          VerticalAlignment="Center"
+                          SnapsToDevicePixels="True"
+                          UseLayoutRounding="True">
+                        <Rectangle Fill="#3B4554"
+                                   RenderOptions.BitmapScalingMode="HighQuality">
+                            <Rectangle.OpacityMask>
+                                <ImageBrush ImageSource="/Resources/Images/SongRow/volume.png"
+                                            Stretch="Uniform"
+                                            RenderOptions.BitmapScalingMode="HighQuality"/>
+                            </Rectangle.OpacityMask>
+                        </Rectangle>
+                    </Grid>
 
                     <Slider x:Name="VolumeSlider" 
                             Grid.Column="6" 
