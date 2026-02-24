@@ -1,0 +1,16 @@
+---
+description: Route agent to known files before broad exploration
+alwaysApply: true
+---
+
+# Agent Routing
+
+- Read `docs/agent-map.md` before broad code exploration.
+- Map the request to likely entry files, then read only those first.
+- First pass budget: max 6 files and max 2 targeted searches.
+- If still unclear after first pass, ask one focused clarification question.
+- Do not run repository-wide scans unless explicitly requested.
+- Do not repeat identical searches/reads when recent output is already sufficient.
+- For small edits in known files, skip exploration and implement directly.
+- After implementation, check if routing/ownership changed; if yes, update `docs/agent-map.md` in the same task.
+- In the final response, include a one-line "Agent map update" status (`updated` or `not needed`).

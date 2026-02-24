@@ -1,0 +1,232 @@
+<UserControl x:Class="Mei_Music.AddToPlaylistCard"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:converters="clr-namespace:Mei_Music.Converters"
+             mc:Ignorable="d"
+             Width="560"
+             Height="520">
+    <UserControl.Resources>
+        <converters:PathToImageSourceConverter x:Key="PathToImageSourceConverter"/>
+
+        <Style x:Key="AddToPlaylistRowButtonStyle"
+               TargetType="Button"
+               BasedOn="{StaticResource ContextMenuCardActionButtonStyle}">
+            <Setter Property="Margin" Value="0,0,0,10"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="BtnBorder"
+                                Background="Transparent"
+                                CornerRadius="12"
+                                Padding="10,8">
+                            <ContentPresenter HorizontalAlignment="Stretch"
+                                              VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="BtnBorder" Property="Background" Value="#EEF1F6"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </UserControl.Resources>
+
+    <Border Background="#F7F9FC"
+            CornerRadius="16"
+            SnapsToDevicePixels="True">
+        <Border.Effect>
+            <DropShadowEffect BlurRadius="24"
+                              ShadowDepth="4"
+                              Opacity="0.28"
+                              Direction="270"
+                              Color="#000000"/>
+        </Border.Effect>
+
+        <Grid Margin="22,14,22,18">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="14"/>
+                <RowDefinition Height="*"/>
+            </Grid.RowDefinitions>
+
+            <Grid Grid.Row="0">
+                <TextBlock Text="Add to Playlist"
+                           HorizontalAlignment="Center"
+                           VerticalAlignment="Center"
+                           FontSize="32"
+                           FontWeight="Bold"
+                           Foreground="#323C54"
+                           TextOptions.TextFormattingMode="Display"/>
+
+                <Button x:Name="CloseButton"
+                        Width="40"
+                        Height="40"
+                        HorizontalAlignment="Right"
+                        VerticalAlignment="Center"
+                        Margin="0,0,0,2"
+                        Background="Transparent"
+                        BorderThickness="0"
+                        Cursor="Hand"
+                        Click="CloseButton_Click">
+                    <Button.Template>
+                        <ControlTemplate TargetType="Button">
+                            <Border Background="Transparent" CornerRadius="20">
+                                <Image Source="/Resources/Images/close.png"
+                                       Width="18"
+                                       Height="18"
+                                       Opacity="0.55"
+                                       Stretch="Uniform"/>
+                            </Border>
+                        </ControlTemplate>
+                    </Button.Template>
+                </Button>
+            </Grid>
+
+            <Grid Grid.Row="1" Margin="0,18,0,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+
+                <Button x:Name="DefaultSortButton"
+                        Grid.Column="0"
+                        Padding="0"
+                        Margin="0,0,14,0"
+                        Background="Transparent"
+                        BorderThickness="0"
+                        Cursor="Hand"
+                        Click="DefaultSortButton_Click">
+                    <TextBlock x:Name="DefaultSortText"
+                               Text="Default Sort"
+                               FontSize="15"
+                               Foreground="#4A5365"
+                               VerticalAlignment="Center"/>
+                </Button>
+
+                <Border Grid.Column="1"
+                        Width="1"
+                        Height="16"
+                        VerticalAlignment="Center"
+                        Background="#D6DBE3"/>
+
+                <Button x:Name="MostSongsSortButton"
+                        Grid.Column="2"
+                        Padding="0"
+                        Margin="14,0,0,0"
+                        Background="Transparent"
+                        BorderThickness="0"
+                        Cursor="Hand"
+                        Click="MostSongsSortButton_Click">
+                    <TextBlock x:Name="MostSongsSortText"
+                               Text="Frequent First"
+                               FontSize="15"
+                               Foreground="#A0A7B5"
+                               VerticalAlignment="Center"/>
+                </Button>
+            </Grid>
+
+            <ScrollViewer Grid.Row="3"
+                          VerticalScrollBarVisibility="Auto"
+                          HorizontalScrollBarVisibility="Disabled">
+                <StackPanel>
+                    <Button x:Name="CreatePlaylistButton"
+                            Style="{StaticResource AddToPlaylistRowButtonStyle}"
+                            Click="CreatePlaylistButton_Click"
+                            Margin="0,0,0,12">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+
+                            <Border Width="56"
+                                    Height="56"
+                                    CornerRadius="12"
+                                    Background="#DDE2EB"
+                                    VerticalAlignment="Center">
+                                <TextBlock Text="+"
+                                           FontSize="28"
+                                           FontWeight="Light"
+                                           Foreground="#3B4458"
+                                           HorizontalAlignment="Center"
+                                           VerticalAlignment="Center"
+                                           Margin="0,-2,0,0"/>
+                            </Border>
+
+                            <TextBlock Grid.Column="1"
+                                       Text="Create New Playlist"
+                                       Margin="14,0,0,0"
+                                       FontSize="15"
+                                       FontWeight="SemiBold"
+                                       VerticalAlignment="Center"
+                                       Foreground="#3B4458"/>
+                        </Grid>
+                    </Button>
+
+                    <ItemsControl x:Name="PlaylistItemsControl">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Button Style="{StaticResource AddToPlaylistRowButtonStyle}"
+                                        Tag="{Binding}"
+                                        Click="PlaylistButton_Click">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+
+                                        <Border Width="56"
+                                                Height="56"
+                                                CornerRadius="12"
+                                                Background="#DDE2EB"
+                                                VerticalAlignment="Center"
+                                                ClipToBounds="True">
+                                            <Grid>
+                                                <Rectangle Fill="White"
+                                                           Opacity="0.85">
+                                                    <Rectangle.OpacityMask>
+                                                        <ImageBrush ImageSource="/Resources/Images/music-player.png"
+                                                                    Stretch="Uniform"/>
+                                                    </Rectangle.OpacityMask>
+                                                </Rectangle>
+                                                <Image Source="{Binding IconPath, Converter={StaticResource PathToImageSourceConverter}}"
+                                                       Stretch="UniformToFill"/>
+                                            </Grid>
+                                        </Border>
+
+                                        <StackPanel Grid.Column="1"
+                                                    Margin="14,0,0,0"
+                                                    VerticalAlignment="Center">
+                                            <TextBlock Text="{Binding Title}"
+                                                       FontSize="15"
+                                                       FontWeight="SemiBold"
+                                                       Foreground="#3A4356"
+                                                       TextTrimming="CharacterEllipsis"/>
+                                            <TextBlock Text="{Binding SongNames.Count, StringFormat={}{0} songs}"
+                                                       FontSize="12"
+                                                       Foreground="#7A8393"/>
+                                        </StackPanel>
+                                    </Grid>
+                                </Button>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
+                    <TextBlock x:Name="NoPlaylistsText"
+                               Visibility="Collapsed"
+                               Margin="6,8,0,0"
+                               Text="No playlists yet. Create one to get started."
+                               FontSize="15"
+                               Foreground="#7A8393"/>
+                </StackPanel>
+            </ScrollViewer>
+        </Grid>
+    </Border>
+</UserControl>
