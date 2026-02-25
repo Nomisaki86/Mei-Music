@@ -3,7 +3,6 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using Microsoft.Win32;
-using System.Diagnostics;
 using System.IO;
 using System.Windows.Threading;
 using AudioSwitcher.AudioApi;
@@ -55,6 +54,16 @@ namespace Mei_Music
         private readonly IPlaylistSortService playlistSortService;
 
         /// <summary>
+        /// Playback flow coordinator for transport navigation and song matching rules.
+        /// </summary>
+        private readonly IPlaybackCoordinator playbackCoordinator;
+
+        /// <summary>
+        /// Media import/conversion service used by local-file import handlers.
+        /// </summary>
+        private readonly IMediaImportService mediaImportService;
+
+        /// <summary>
         /// Path to serialized song metadata persisted across sessions.
         /// </summary>
         private string songDataFilePath = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Mei Music", "songData.json");
@@ -89,12 +98,6 @@ namespace Mei_Music
         /// </summary>
         private const int SongRowDoubleClickThresholdMs = 300;
 
-        /// <summary>List used for Prev/Next and auto-next; set when user starts playing from the list.</summary>
-        private IList? _playbackList;
-        /// <summary>Timestamp (Environment.TickCount64) of last left-click on a playable song row.</summary>
-        private long _lastSongRowClickTimestampMs;
-        /// <summary>Song from the most recent left-click used for custom double-click detection.</summary>
-        private Song? _lastSongRowClickedSong;
         /// <summary>Saved vertical scroll offset for the All (Songs) view when switching tabs.</summary>
         private double _allViewScrollOffset;
         /// <summary>Saved vertical scroll offset for the Liked view when switching tabs.</summary>
@@ -107,15 +110,24 @@ namespace Mei_Music
         private double _playlistViewScrollOffset;
         /// <summary>Prevents feedback loops while syncing overlay scrollbar with ListView ScrollViewer.</summary>
         private bool _isSyncingSongOverlayScrollBar;
+        /// <summary>Prevents feedback loops while syncing overlay scrollbar with playlist sidebar ScrollViewer.</summary>
+        private bool _isSyncingPlaylistOverlayScrollBar;
 
         /// <summary>
         /// Initializes services, loads persisted app state, wires UI events,
         /// and prepares playback/list controls for first render.
         /// </summary>
-        public MainWindow(MainViewModel viewModel, IFileService fileService, IPlaylistSortService playlistSortService)
+        public MainWindow(
+            MainViewModel viewModel,
+            IFileService fileService,
+            IPlaylistSortService playlistSortService,
+            IPlaybackCoordinator playbackCoordinator,
+            IMediaImportService mediaImportService)
         {
             this.fileService = fileService;
             this.playlistSortService = playlistSortService;
+            this.playbackCoordinator = playbackCoordinator;
+            this.mediaImportService = mediaImportService;
 
             InitializeComponent();
             this.DataContext = viewModel;
@@ -178,16 +190,7 @@ namespace Mei_Music
         /// </summary>
         private void UpdateCurrentSongState()
         {
-            Song? currentSong = ViewModel.CurrentSong;
-
-            foreach (var song in ViewModel.Songs)
-            {
-                bool isCurrent = currentSong != null && (ReferenceEquals(song, currentSong) || song.Name == currentSong.Name);
-                if (song.IsCurrent != isCurrent)
-                {
-                    song.IsCurrent = isCurrent;
-                }
-            }
+            playbackCoordinator.SyncCurrentSongFlags(ViewModel.Songs, ViewModel.CurrentSong);
         }
 
         /// <summary>
@@ -196,6 +199,7 @@ namespace Mei_Music
         private void MainWindow_Loaded(object sender, RoutedEventArgs e)
         {
             UpdateSongColumnLayout();
+            Dispatcher.BeginInvoke(SyncPlaylistOverlayScrollBar, DispatcherPriority.Loaded);
         }
 
         /// <summary>
@@ -284,6 +288,63 @@ namespace Mei_Music
             scrollViewer.ScrollToVerticalOffset(e.NewValue);
         }
 
+        /// <summary>
+        /// Keeps the playlist sidebar overlay scrollbar synchronized when the underlying ScrollViewer moves.
+        /// </summary>
+        private void PlaylistSidebarScrollViewer_ScrollChanged(object sender, ScrollChangedEventArgs e)
+        {
+            SyncPlaylistOverlayScrollBar();
+        }
+
+        /// <summary>
+        /// Mirrors playlist sidebar ScrollViewer state into a styled overlay scrollbar.
+        /// Guarded by <see cref="_isSyncingPlaylistOverlayScrollBar"/> to prevent recursive updates.
+        /// </summary>
+        private void SyncPlaylistOverlayScrollBar()
+        {
+            if (PlaylistOverlayScrollBar == null)
+            {
+                return;
+            }
+
+            _isSyncingPlaylistOverlayScrollBar = true;
+            try
+            {
+                if (PlaylistSidebarScrollViewer == null)
+                {
+                    PlaylistOverlayScrollBar.Visibility = Visibility.Collapsed;
+                    PlaylistOverlayScrollBar.Maximum = 0;
+                    PlaylistOverlayScrollBar.ViewportSize = 0;
+                    PlaylistOverlayScrollBar.Value = 0;
+                    return;
+                }
+
+                double max = Math.Max(0, PlaylistSidebarScrollViewer.ScrollableHeight);
+                PlaylistOverlayScrollBar.Visibility = max > 0 ? Visibility.Visible : Visibility.Collapsed;
+                PlaylistOverlayScrollBar.Maximum = max;
+                PlaylistOverlayScrollBar.ViewportSize = Math.Max(0, PlaylistSidebarScrollViewer.ViewportHeight);
+                PlaylistOverlayScrollBar.LargeChange = Math.Max(1, PlaylistSidebarScrollViewer.ViewportHeight * 0.9);
+                PlaylistOverlayScrollBar.Value = Math.Clamp(PlaylistSidebarScrollViewer.VerticalOffset, 0, max);
+            }
+            finally
+            {
+                _isSyncingPlaylistOverlayScrollBar = false;
+            }
+        }
+
+        /// <summary>
+        /// Applies user interaction from the playlist overlay scrollbar back to its ScrollViewer.
+        /// </summary>
+        private void PlaylistOverlayScrollBar_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+        {
+            if (_isSyncingPlaylistOverlayScrollBar)
+            {
+                return;
+            }
+
+            PlaylistSidebarScrollViewer?.ScrollToVerticalOffset(e.NewValue);
+        }
+
         /// <summary>Loads created playlists from disk into CreatedPlaylists.</summary>
         private void LoadCreatedPlaylists()
         {
@@ -299,13 +360,20 @@ namespace Mei_Music
             fileService.SavePlaylists(PlaylistsFilePath, ViewModel.CreatedPlaylists.ToList());
         }
 
-        /// <summary>Shows the in-app create-playlist overlay; card raises CreateClicked or CloseRequested.</summary>
-        private void OpenCreatePlaylistDialog(object sender, RoutedEventArgs e)
+        /// <summary>Resets and shows the create-playlist overlay card.</summary>
+        private void OpenCreatePlaylistOverlay()
         {
             CreatePlaylistCard.Reset();
             CreatePlaylistCardTransform.X = 0;
             CreatePlaylistCardTransform.Y = 0;
             CreatePlaylistOverlay.Visibility = Visibility.Visible;
+        }
+
+        /// <summary>Shows the in-app create-playlist overlay; card raises CreateClicked or CloseRequested.</summary>
+        private void OpenCreatePlaylistDialog(object sender, RoutedEventArgs e)
+        {
+            _pendingAddToPlaylistSong = null;
+            OpenCreatePlaylistOverlay();
         }
 
         /// <summary>
@@ -351,6 +419,19 @@ namespace Mei_Music
             }
 
             ViewModel.CreatePlaylist(playlist);
+
+            Song? pendingSong = _pendingAddToPlaylistSong;
+            if (pendingSong != null)
+            {
+                bool wasAdded = TryAddSongToPlaylist(playlist, pendingSong);
+                if (wasAdded)
+                {
+                    MessageBox.Show($"Added \"{pendingSong.Name}\" to \"{playlist.Title}\".", "Playlist Updated", MessageBoxButton.OK, MessageBoxImage.Information);
+                }
+
+                _pendingAddToPlaylistSong = null;
+            }
+
             CreatePlaylistOverlay.Visibility = Visibility.Collapsed;
         }
 
@@ -363,6 +444,11 @@ namespace Mei_Music
         /// Song currently targeted by the song context menu card.
         /// </summary>
         private Song? _contextMenuTargetSong;
+
+        /// <summary>
+        /// Song currently being added from the add-to-playlist flow.
+        /// </summary>
+        private Song? _pendingAddToPlaylistSong;
 
         // Pointer Gap
         private const double ContextMenuPointerGap = 15;
@@ -462,6 +548,60 @@ namespace Mei_Music
         }
 
         /// <summary>
+        /// Opens the add-to-playlist picker for a target song.
+        /// </summary>
+        private void OpenAddToPlaylistOverlay(Song song)
+        {
+            _pendingAddToPlaylistSong = song;
+            AddToPlaylistCardView.LoadPlaylists(ViewModel.CreatedPlaylists);
+            AddToPlaylistCardTransform.X = 0;
+            AddToPlaylistCardTransform.Y = 0;
+            AddToPlaylistOverlay.Visibility = Visibility.Visible;
+        }
+
+        /// <summary>
+        /// Hides add-to-playlist overlay and optionally clears pending target song.
+        /// </summary>
+        private void CloseAddToPlaylistOverlay(bool clearPendingSong = true)
+        {
+            AddToPlaylistOverlay.Visibility = Visibility.Collapsed;
+            if (clearPendingSong)
+            {
+                _pendingAddToPlaylistSong = null;
+            }
+        }
+
+        /// <summary>
+        /// Adds the provided song to the playlist if it is not already present.
+        /// Persists playlist changes and refreshes active playlist view when needed.
+        /// </summary>
+        private bool TryAddSongToPlaylist(CreatedPlaylist playlist, Song song)
+        {
+            if (string.IsNullOrWhiteSpace(song.Name))
+            {
+                return false;
+            }
+
+            playlist.SongNames ??= new List<string>();
+            bool alreadyInPlaylist = playlist.SongNames.Any(name =>
+                string.Equals(name, song.Name, StringComparison.OrdinalIgnoreCase));
+            if (alreadyInPlaylist)
+            {
+                return false;
+            }
+
+            playlist.SongNames.Add(song.Name);
+            ViewModel.SaveCreatedPlaylists();
+
+            if (_activePlaylist != null && string.Equals(_activePlaylist.Id, playlist.Id, StringComparison.Ordinal))
+            {
+                ApplyPlaylistView(playlist);
+            }
+
+            return true;
+        }
+
+        /// <summary>
         /// Opens playlist context menu near the right-click position.
         /// </summary>
         private void PlaylistItem_RightClick(object sender, MouseButtonEventArgs e)
@@ -471,6 +611,7 @@ namespace Mei_Music
 
             _contextMenuTargetPlaylist = playlist;
             CloseSongContextMenu(clearTarget: true);
+            CloseAddToPlaylistOverlay(clearPendingSong: true);
 
             Point anchorPoint = e.GetPosition(this);
             Size popupSize = GetPlaylistContextMenuSize();
@@ -568,6 +709,7 @@ namespace Mei_Music
         {
             ClosePlaylistContextMenu();
             CloseSongContextMenu();
+            CloseAddToPlaylistOverlay(clearPendingSong: true);
 
             Size popupSize = GetSongContextMenuSize();
             OpenContextMenuCardAtWindowPoint(
@@ -614,7 +756,7 @@ namespace Mei_Music
         /// </summary>
         private void SongRow_PlayPauseRequested(object? sender, SongPlayPauseRequestedEventArgs e)
         {
-            _playbackList = GetCurrentSongList() ?? ViewModel.Songs;
+            playbackCoordinator.SetPlaybackList(GetCurrentSongList() ?? ViewModel.Songs);
 
             _suppressSelectionChanged = true;
             try
@@ -626,8 +768,7 @@ namespace Mei_Music
                 _suppressSelectionChanged = false;
             }
 
-            bool isCurrentSong = ViewModel.CurrentSong != null
-                && (ReferenceEquals(ViewModel.CurrentSong, e.Song) || ViewModel.CurrentSong.Name == e.Song.Name);
+            bool isCurrentSong = playbackCoordinator.IsCurrentSong(ViewModel.CurrentSong, e.Song);
 
             if (isCurrentSong)
             {
@@ -693,14 +834,73 @@ namespace Mei_Music
         }
 
         /// <summary>
-        /// Placeholder action for future "Add to Playlist" workflow.
-        /// Invoked by the song options context menu action.
+        /// Opens add-to-playlist card for the song currently targeted by context menu.
         /// </summary>
         private void SongContextMenu_AddRequested(object? sender, EventArgs e)
         {
+            Song? targetSong = _contextMenuTargetSong;
             CloseSongContextMenu(clearTarget: true);
-            // Existing logic or placeholder for Add to Playlist
-            MessageBox.Show("Add to Playlist feature coming soon!", "Feature", MessageBoxButton.OK, MessageBoxImage.Information);
+            if (targetSong == null)
+            {
+                return;
+            }
+
+            OpenAddToPlaylistOverlay(targetSong);
+        }
+
+        /// <summary>
+        /// Closes add-to-playlist picker without taking action.
+        /// </summary>
+        private void AddToPlaylistCard_CloseRequested(object? sender, EventArgs e)
+        {
+            CloseAddToPlaylistOverlay(clearPendingSong: true);
+        }
+
+        /// <summary>
+        /// Moves the add-to-playlist card within overlay bounds while user drags its header.
+        /// </summary>
+        private void AddToPlaylistCard_DragMoveDelta(object? sender, DragMoveDeltaEventArgs e)
+        {
+            double newX = AddToPlaylistCardTransform.X + e.HorizontalChange;
+            double newY = AddToPlaylistCardTransform.Y + e.VerticalChange;
+
+            double maxX = Math.Max(0, (AddToPlaylistOverlay.ActualWidth - AddToPlaylistCardHost.ActualWidth) / 2);
+            double maxY = Math.Max(0, (AddToPlaylistOverlay.ActualHeight - AddToPlaylistCardHost.ActualHeight) / 2);
+
+            AddToPlaylistCardTransform.X = Math.Clamp(newX, -maxX, maxX);
+            AddToPlaylistCardTransform.Y = Math.Clamp(newY, -maxY, maxY);
+        }
+
+        /// <summary>
+        /// Opens create-playlist flow from add-to-playlist picker.
+        /// If playlist is created, pending song will be added automatically.
+        /// </summary>
+        private void AddToPlaylistCard_CreatePlaylistRequested(object? sender, EventArgs e)
+        {
+            CloseAddToPlaylistOverlay(clearPendingSong: false);
+            OpenCreatePlaylistOverlay();
+        }
+
+        /// <summary>
+        /// Adds pending song to selected playlist and notifies user.
+        /// </summary>
+        private void AddToPlaylistCard_PlaylistSelected(object? sender, PlaylistSelectedEventArgs e)
+        {
+            Song? targetSong = _pendingAddToPlaylistSong;
+            if (targetSong == null)
+            {
+                CloseAddToPlaylistOverlay(clearPendingSong: true);
+                return;
+            }
+
+            bool wasAdded = TryAddSongToPlaylist(e.Playlist, targetSong);
+            string message = wasAdded
+                ? $"Added \"{targetSong.Name}\" to \"{e.Playlist.Title}\"."
+                : $"\"{targetSong.Name}\" is already in \"{e.Playlist.Title}\".";
+            string title = wasAdded ? "Playlist Updated" : "Already in Playlist";
+
+            MessageBox.Show(message, title, MessageBoxButton.OK, MessageBoxImage.Information);
+            CloseAddToPlaylistOverlay(clearPendingSong: true);
         }
 
         /// <summary>
@@ -761,6 +961,7 @@ namespace Mei_Music
         private void CreatePlaylistCard_CloseRequested(object? sender, EventArgs e)
         {
             CreatePlaylistOverlay.Visibility = Visibility.Collapsed;
+            _pendingAddToPlaylistSong = null;
         }
 
         /// <summary>
@@ -769,6 +970,7 @@ namespace Mei_Music
         private void CreatePlaylistOverlayDim_MouseDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
         {
             CreatePlaylistOverlay.Visibility = Visibility.Collapsed;
+            _pendingAddToPlaylistSong = null;
         }
 
         /// <summary>Updates visibility of the "Create" card vs playlist list in the sidebar based on CreatedPlaylists count.</summary>
@@ -779,6 +981,7 @@ namespace Mei_Music
             bool hasPlaylists = ViewModel.CreatedPlaylists.Count > 0;
             CreateFirstPlaylistPanel.Visibility = hasPlaylists ? Visibility.Collapsed : Visibility.Visible;
             PlaylistListPanel.Visibility = hasPlaylists ? Visibility.Visible : Visibility.Collapsed;
+            Dispatcher.BeginInvoke(SyncPlaylistOverlayScrollBar, DispatcherPriority.Loaded);
         }
 
         /// <summary>
@@ -857,20 +1060,6 @@ namespace Mei_Music
         }
 
         /// <summary>
-        /// Finds the index of the given song in the list by reference or by Name, or -1 if not found.
-        /// </summary>
-        private static int IndexOfSongInList(IList list, Song? song)
-        {
-            if (list == null || song == null) return -1;
-            for (int i = 0; i < list.Count; i++)
-            {
-                if (list[i] is Song s && (ReferenceEquals(s, song) || s.Name == song.Name))
-                    return i;
-            }
-            return -1;
-        }
-
-        /// <summary>
         /// After changing the list (All/Liked) or after Prev/Next, sync selection to the currently playing song.
         /// If CurrentSong is in the visible list, select it; otherwise clear selection so no row is highlighted.
         /// Does not restart playback.
@@ -886,7 +1075,7 @@ namespace Mei_Music
                 return;
             }
 
-            int index = IndexOfSongInList(list, ViewModel.CurrentSong);
+            int index = playbackCoordinator.IndexOfSongInList(list, ViewModel.CurrentSong);
             if (index >= 0 && list[index] is Song visibleSong)
             {
                 UploadedSongList.SelectedItem = visibleSong;
@@ -1100,81 +1289,12 @@ namespace Mei_Music
 
         //------------------------- Add Audio Implementation -------------------------------
         /// <summary>
-        /// Creates a new song model from imported media and persists updated catalog.
-        /// </summary>
-        internal void AddSongToList(string name, string sourceFilePath)
-        {
-            var song = new Song
-            {
-                Index = (ViewModel.Songs.Count + 1).ToString("D2"),
-                Name = name,
-                Duration = GetMediaDuration(sourceFilePath)
-            };
-
-            ViewModel.Songs.Add(song);
-            UpdateSongData();
-        }
-
-        /// <summary>
-        /// Reads media duration metadata and returns mm:ss format.
-        /// Returns empty string when file is missing or unreadable.
-        /// </summary>
-        private static string GetMediaDuration(string filePath)
-        {
-            if (string.IsNullOrWhiteSpace(filePath) || !File.Exists(filePath))
-            {
-                return string.Empty;
-            }
-
-            try
-            {
-                using var mediaFile = TagLib.File.Create(filePath);
-                return mediaFile.Properties.Duration.ToString(@"mm\:ss");
-            }
-            catch
-            {
-                return string.Empty;
-            }
-        }
-
-        /// <summary>
         /// Refreshes an existing song's duration after external conversion/import steps.
         /// </summary>
         internal void RefreshSongDurationFromFile(string filePath)
         {
-            string duration = GetMediaDuration(filePath);
-            if (string.IsNullOrWhiteSpace(duration))
+            if (mediaImportService.RefreshSongDurationFromFile(ViewModel.Songs, filePath))
             {
-                return;
-            }
-
-            string fileNameWithoutExtension = Path.GetFileNameWithoutExtension(filePath);
-            if (string.IsNullOrWhiteSpace(fileNameWithoutExtension))
-            {
-                return;
-            }
-
-            Song? song = ViewModel.Songs.FirstOrDefault(s => s.Name == fileNameWithoutExtension);
-            if (song == null || song.Duration == duration)
-            {
-                return;
-            }
-
-            song.Duration = duration;
-            UpdateSongData();
-        }
-
-        /// <summary>
-        /// Removes song metadata entry by name and persists updated catalog.
-        /// </summary>
-        private void RemoveSongFromList(string name)
-        {
-            // Find the song with the specified name in the list
-            var songToRemove = ViewModel.Songs.OfType<Song>().FirstOrDefault(song => song.Name == name);
-
-            if (songToRemove != null)
-            {
-                ViewModel.Songs.Remove(songToRemove);
                 UpdateSongData();
             }
         }
@@ -1193,23 +1313,19 @@ namespace Mei_Music
             if (ofd.ShowDialog() == true) //if the user chosed a file or 
             {
                 string selectedFile = ofd.FileName;
-                string fileExtension = System.IO.Path.GetExtension(selectedFile).ToLower(); //allows selection of file from local folder
-                string outputDirectory = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Mei Music", "playlist");
-                Directory.CreateDirectory(outputDirectory); // Ensure the directory structure exists
+                string fileExtension = Path.GetExtension(selectedFile).ToLower();
+                Directory.CreateDirectory(mediaImportService.AudioStorageDirectory);
 
                 //is video file
-                if (fileExtension == ".mp4" || fileExtension == ".mkv")
+                if (mediaImportService.IsVideoExtension(fileExtension))
                 {
-                    string audioFilePath = ConvertVideoToAudio(selectedFile); //get the path to audio file
-                    if (audioFilePath != null)
-                    {
-                        AddFileToUI(audioFilePath);
-                    }
+                    string audioFilePath = mediaImportService.ConvertVideoToAudio(selectedFile);
+                    AddFileToUI(audioFilePath);
                 }
                 //is audio file
-                else if (fileExtension == ".wav" || fileExtension == ".mp3")
+                else if (mediaImportService.IsAudioExtension(fileExtension))
                 {
-                    string audioFilePath = System.IO.Path.Combine(outputDirectory, System.IO.Path.GetFileName(selectedFile));
+                    string audioFilePath = Path.Combine(mediaImportService.AudioStorageDirectory, Path.GetFileName(selectedFile));
                     AddFileToUI(selectedFile);
                     File.Copy(selectedFile, audioFilePath, overwrite: true); // Copy file to output directory
                 }
@@ -1226,125 +1342,50 @@ namespace Mei_Music
         }
 
         /// <summary>
-        /// Resolves an absolute path for a bundled tool and verifies it exists.
-        /// Returns null (after showing a message) when the file is missing.
-        /// </summary>
-        private string? GetToolPath(string relativeToolPath)
-        {
-            string fullPath = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, relativeToolPath);
-            if (!File.Exists(fullPath))
-            {
-                string toolName = System.IO.Path.GetFileName(fullPath);
-                MessageBox.Show(
-                    $"Required tool '{toolName}' was not found at:\n{fullPath}\n\nPlease reinstall the application.",
-                    "Missing Tool",
-                    MessageBoxButton.OK,
-                    MessageBoxImage.Error);
-                return null;
-            }
-            return fullPath;
-        }
-
-        /// <summary>
-        /// Converts a video file to MP3 using bundled ffmpeg.
-        /// Returns output audio path when conversion succeeds.
-        /// </summary>
-        internal string ConvertVideoToAudio(string videoFilePath) //perform conversion from video to audio
-        {
-            try
-            {
-                string outputDirectory = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Mei Music", "playlist");
-                Directory.CreateDirectory(outputDirectory); // Ensure the directory structure exists
-
-                string audioFilePath = System.IO.Path.Combine(outputDirectory, System.IO.Path.GetFileNameWithoutExtension(videoFilePath) + ".mp3");
-
-                string? ffmpegPath = GetToolPath(@"Resources\ffmpeg\ffmpeg.exe");
-                if (ffmpegPath == null) throw new InvalidOperationException("ffmpeg.exe is missing.");
-
-                ProcessStartInfo startInfo = new ProcessStartInfo
-                {
-                    FileName = ffmpegPath,
-                    //q:a 0 set audio quality to best. map a allows extraction of only audio -y allows to overwrite output files
-                    Arguments = $"-i \"{videoFilePath}\" -q:a 0 -map a \"{audioFilePath}\" -y",
-                    RedirectStandardOutput = true, //capture processing info
-                    RedirectStandardError = true,  //capture processing error
-                    UseShellExecute = false,
-                    CreateNoWindow = true
-                };
-                Process? process = Process.Start(startInfo); //the ? indicate that process may be null
-                if (process == null)
-                {
-                    throw new InvalidOperationException("Fail to start the ffmpeg process.");
-                }
-                using (process)
-                {
-                    process.WaitForExit();
-                }
-                return audioFilePath;
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show($"Failed to convert Video: {ex.Message}");
-                throw;
-            }
-        }
-
-        /// <summary>
         /// Adds a track entry to the playlist UI and handles name collisions by
         /// prompting the user to replace, rename, or cancel.
         /// </summary>
         internal void AddFileToUI(string filePath)
         {
-            string fileNameWithoutExtension = System.IO.Path.GetFileNameWithoutExtension(filePath); //get file name
+            ImportSongOutcome importOutcome = mediaImportService.ImportFileIntoSongs(
+                ViewModel.Songs,
+                filePath,
+                ResolveDuplicateImportChoice);
 
-            bool isDuplicate = ViewModel.Songs
-                                .OfType<Song>()
-                                .Any(song => song.Name == fileNameWithoutExtension);
-
-            if (isDuplicate) //if name already exists in the list
+            switch (importOutcome.Kind)
             {
-                DuplicateFileDialog dialog = new DuplicateFileDialog();
-                dialog.Owner = this;
-                if (dialog.ShowDialog() == true)
-                {
-                    // Keep playlist metadata aligned with the duplicate action selected by the user.
-                    switch (dialog.SelectedAction)
+                case ImportSongOutcomeKind.Added:
+                case ImportSongOutcomeKind.Replaced:
+                    UpdateSongData();
+                    break;
+
+                case ImportSongOutcomeKind.RenameRequested:
+                    if (importOutcome.ExistingSong != null)
                     {
-                        case DuplicateFileDialog.DuplicateFileAction.Replace:
-                            ReplaceFileInUI(filePath);
-                            break;
-
-                        case DuplicateFileDialog.DuplicateFileAction.Rename:
-                            PromptForNewName(filePath);
-                            break;
-
-                        case DuplicateFileDialog.DuplicateFileAction.Cancel:
-                            return;
+                        ViewModel.RenameSongCommand.Execute(importOutcome.ExistingSong);
                     }
-                }
+                    break;
             }
-            else //no duplicate
+        }
+
+        private DuplicateImportChoice ResolveDuplicateImportChoice()
+        {
+            DuplicateFileDialog dialog = new DuplicateFileDialog
             {
-                AddSongToList(fileNameWithoutExtension, filePath); //add the file name of the audio path to the viewport list
+                Owner = this
+            };
+
+            if (dialog.ShowDialog() != true)
+            {
+                return DuplicateImportChoice.Cancel;
             }
-        }
 
-        /// <summary>
-        /// Handles duplicate-file "Replace" action by replacing existing song metadata entry.
-        /// </summary>
-        private void ReplaceFileInUI(string filePath)
-        {
-            string fileNameWithoutExtension = System.IO.Path.GetFileNameWithoutExtension(filePath);
-            RemoveSongFromList(fileNameWithoutExtension);
-            AddSongToList(fileNameWithoutExtension, filePath);
-        }
-
-        /// <summary>
-        /// Delegates duplicate-file "Rename" action to rename command.
-        /// </summary>
-        private void PromptForNewName(string filePath)
-        {
-            ViewModel.RenameSongCommand.Execute(ViewModel.Songs.FirstOrDefault(s => s.Name == System.IO.Path.GetFileNameWithoutExtension(filePath)) ?? new Song());
+            return dialog.SelectedAction switch
+            {
+                DuplicateFileDialog.DuplicateFileAction.Replace => DuplicateImportChoice.Replace,
+                DuplicateFileDialog.DuplicateFileAction.Rename => DuplicateImportChoice.Rename,
+                _ => DuplicateImportChoice.Cancel
+            };
         }
 
         /// <summary>
@@ -1371,7 +1412,7 @@ namespace Mei_Music
 
         //-------------------------  Song Functionality Implementation ---------------------
         /// <summary>
-        /// Loads and plays the given song. Does not set _playbackList or call SaveSongIndex.
+        /// Loads and plays the given song. Does not set the playback list or call SaveSongIndex.
         /// Returns true if playback started, false if file not found.
         /// </summary>
         private bool PlaySong(Song song)
@@ -1404,7 +1445,7 @@ namespace Mei_Music
             if (UploadedSongList.SelectedItem is not Song selectedSong)
                 return;
 
-            _playbackList = GetCurrentSongList() ?? ViewModel.Songs;
+            playbackCoordinator.SetPlaybackList(GetCurrentSongList() ?? ViewModel.Songs);
 
             UpdatePlaybackButtonIcon();
             SaveSongIndex();
@@ -1424,32 +1465,28 @@ namespace Mei_Music
             // Keep row action buttons (like/options/play-pause) in control of their own interactions.
             if (FindVisualParent<Button>(source) != null)
             {
-                _lastSongRowClickedSong = null;
+                playbackCoordinator.ResetSongRowClickTracking();
                 return;
             }
 
             var listViewItem = FindVisualParent<ListViewItem>(source);
             if (listViewItem?.DataContext is not Song song)
             {
-                _lastSongRowClickedSong = null;
+                playbackCoordinator.ResetSongRowClickTracking();
                 return;
             }
 
-            long nowMs = Environment.TickCount64;
-            bool sameSongAsPrevious = ReferenceEquals(_lastSongRowClickedSong, song);
-            bool withinThreshold = nowMs - _lastSongRowClickTimestampMs <= SongRowDoubleClickThresholdMs;
-
-            _lastSongRowClickedSong = song;
-            _lastSongRowClickTimestampMs = nowMs;
-
-            if (!sameSongAsPrevious || !withinThreshold)
+            bool isDoubleClick = playbackCoordinator.IsSongRowDoubleClick(
+                song,
+                Environment.TickCount64,
+                SongRowDoubleClickThresholdMs);
+            if (!isDoubleClick)
             {
                 return;
             }
 
-            _playbackList = GetCurrentSongList() ?? ViewModel.Songs;
-            bool isCurrentSong = ViewModel.CurrentSong != null
-                && (ReferenceEquals(ViewModel.CurrentSong, song) || ViewModel.CurrentSong.Name == song.Name);
+            playbackCoordinator.SetPlaybackList(GetCurrentSongList() ?? ViewModel.Songs);
+            bool isCurrentSong = playbackCoordinator.IsCurrentSong(ViewModel.CurrentSong, song);
 
             if (isCurrentSong)
             {
@@ -1463,7 +1500,7 @@ namespace Mei_Music
 
             SaveSongIndex();
             e.Handled = true;
-            _lastSongRowClickedSong = null;
+            playbackCoordinator.ResetSongRowClickTracking();
         }
 
         /// <summary>
@@ -1514,17 +1551,15 @@ namespace Mei_Music
         /// </summary>
         private void PreviousSongClicked(object sender, RoutedEventArgs e)
         {
-            var list = _playbackList ?? GetCurrentSongList() ?? ViewModel.Songs;
+            var list = playbackCoordinator.PlaybackList ?? GetCurrentSongList() ?? ViewModel.Songs;
             if (list == null || list.Count == 0) return;
-            int currentIndex = IndexOfSongInList(list, ViewModel.CurrentSong);
-            if (currentIndex < 0) currentIndex = 0;
-            int prevIndex = (currentIndex - 1 + list.Count) % list.Count;
-            if (list[prevIndex] is not Song prevSong) return;
+            Song? prevSong = playbackCoordinator.GetPreviousSong(list, ViewModel.CurrentSong);
+            if (prevSong == null) return;
             PlaySong(prevSong);
             _suppressSelectionChanged = true;
             SyncSelectionToCurrentSong();
             _suppressSelectionChanged = false;
-            if (ReferenceEquals(GetCurrentSongList(), _playbackList))
+            if (ReferenceEquals(GetCurrentSongList(), playbackCoordinator.PlaybackList))
                 SaveSongIndex();
         }
 
@@ -1535,7 +1570,7 @@ namespace Mei_Music
         {
             if (ViewModel.CurrentSong == null && UploadedSongList.SelectedItem is Song selectedSong)
             {
-                _playbackList = GetCurrentSongList() ?? ViewModel.Songs;
+                playbackCoordinator.SetPlaybackList(GetCurrentSongList() ?? ViewModel.Songs);
                 PlaySong(selectedSong);
                 SaveSongIndex();
                 return;
@@ -1551,17 +1586,15 @@ namespace Mei_Music
         /// </summary>
         private void NextSongClicked(object sender, RoutedEventArgs e)
         {
-            var list = _playbackList ?? GetCurrentSongList() ?? ViewModel.Songs;
+            var list = playbackCoordinator.PlaybackList ?? GetCurrentSongList() ?? ViewModel.Songs;
             if (list == null || list.Count == 0) return;
-            int currentIndex = IndexOfSongInList(list, ViewModel.CurrentSong);
-            if (currentIndex < 0) currentIndex = 0;
-            int nextIndex = (currentIndex + 1) % list.Count;
-            if (list[nextIndex] is not Song nextSong) return;
+            Song? nextSong = playbackCoordinator.GetNextSong(list, ViewModel.CurrentSong);
+            if (nextSong == null) return;
             PlaySong(nextSong);
             _suppressSelectionChanged = true;
             SyncSelectionToCurrentSong();
             _suppressSelectionChanged = false;
-            if (ReferenceEquals(GetCurrentSongList(), _playbackList))
+            if (ReferenceEquals(GetCurrentSongList(), playbackCoordinator.PlaybackList))
                 SaveSongIndex();
         }
 
@@ -1570,17 +1603,15 @@ namespace Mei_Music
         /// </summary>
         private void MediaPlayer_MediaEnded(object? sender, EventArgs e)
         {
-            var list = _playbackList ?? GetCurrentSongList() ?? ViewModel.Songs;
+            var list = playbackCoordinator.PlaybackList ?? GetCurrentSongList() ?? ViewModel.Songs;
             if (list == null || list.Count == 0) return;
-            int currentIndex = IndexOfSongInList(list, ViewModel.CurrentSong);
-            if (currentIndex < 0) currentIndex = 0;
-            int nextIndex = (currentIndex + 1) % list.Count;
-            if (list[nextIndex] is not Song nextSong) return;
+            Song? nextSong = playbackCoordinator.GetNextSong(list, ViewModel.CurrentSong);
+            if (nextSong == null) return;
             PlaySong(nextSong);
             _suppressSelectionChanged = true;
             SyncSelectionToCurrentSong();
             _suppressSelectionChanged = false;
-            if (ReferenceEquals(GetCurrentSongList(), _playbackList))
+            if (ReferenceEquals(GetCurrentSongList(), playbackCoordinator.PlaybackList))
                 SaveSongIndex();
         }
 
@@ -1592,7 +1623,7 @@ namespace Mei_Music
         private void SaveSongIndex()
         {
             var list = GetCurrentSongList() ?? ViewModel.Songs;
-            int selectedSongIndex = IndexOfSongInList(list, UploadedSongList.SelectedItem as Song);
+            int selectedSongIndex = playbackCoordinator.IndexOfSongInList(list, UploadedSongList.SelectedItem as Song);
             Properties.Settings.Default.LastSelectedIndex = selectedSongIndex;
             Properties.Settings.Default.Save();
         }
@@ -1760,6 +1791,11 @@ namespace Mei_Music
                 ClosePlaylistContextMenu();
             }
 
+            if (ShouldDismissContextMenu(AddToPlaylistOverlay, AddToPlaylistCardView))
+            {
+                CloseAddToPlaylistOverlay(clearPendingSong: true);
+            }
+
             // Close the Popup if the click is outside the Popup
             if (PlusPopupMenu.IsOpen && !PlusPopupMenu.IsMouseOver)
             {
@@ -1780,6 +1816,7 @@ namespace Mei_Music
         {
             CloseSongContextMenu(clearTarget: true);
             ClosePlaylistContextMenu();
+            CloseAddToPlaylistOverlay(clearPendingSong: true);
 
             // Close the dropdown if the application loses focus
             if (PlusPopupMenu.IsOpen)
@@ -1943,7 +1980,7 @@ namespace Mei_Music
         {
             if (sender is FrameworkElement fe && fe.DataContext is Song song)
             {
-                _playbackList = GetCurrentSongList() ?? ViewModel.Songs;
+                playbackCoordinator.SetPlaybackList(GetCurrentSongList() ?? ViewModel.Songs);
                 PlaySong(song);
                 SaveSongIndex();
             }
@@ -1957,6 +1994,7 @@ namespace Mei_Music
         {
             CloseSongContextMenu(clearTarget: true);
             ClosePlaylistContextMenu();
+            CloseAddToPlaylistOverlay(clearPendingSong: true);
 
             if (e.ChangedButton == MouseButton.Left)
             {

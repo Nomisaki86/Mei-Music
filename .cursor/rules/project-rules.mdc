@@ -1,8 +1,6 @@
 ---
-description: Core coding and workflow standards for MeiMusic
-alwaysApply: true
+alwaysApply: false
 ---
-
 # Project Rules
 
 ## Product and UX
@@ -10,18 +8,18 @@ alwaysApply: true
 - **Preserve user's existing choices**: When editing existing UI or code, keep properties and settings the user has already set. Do not overwrite them with the agent's own defaults or preferences unless the user explicitly asks to change them.
 
 ## Code and maintainability
+- **Single Source of Truth**: For multiple things with the same functionality or template, hold a single reusable template that can be used to avoid duplicate coding.
 - **No hardcoding**: Use configuration, constants, or data instead of magic values.
 - **Comments should be concise and useful**: Add comments only where logic is non-obvious, and keep them intent-focused.
 - **Avoid cosmetic-only churn**: Do not perform broad formatting or style-only refactors unless explicitly requested.
+- **File moves are user-driven by default**: Do not move/rename files automatically unless explicitly requested. When reorganization is needed, provide the move list for the user to do manually, then update namespaces/usings/references afterward.
 
 ## Execution safety
-- **Build and Test Allowed, NO Open App**: Build/test is allowed, but NEVER launch or open the application window automatically.
+- **Build/test allowed, no auto-launch**: Running build/test is allowed, but NEVER launch the application window automatically.
 - **Locating Files**: If a specific file/resource location is unclear, ask for clarification before broad searching.
 - **Cleanup Temporary Files**: Remove temporary logs and scratch artifacts before finishing.
 
-## Response format
-- **Changed files must include line references**: When returning updated files, list what was changed/implemented in each file and include the affected line number(s) or line range(s).
-- **Readable per-file layout**: For each changed file, put the file reference on its own line and put the explanation on a separate next line (do not combine them into one long sentence).
-- **Clickable path format**: Use clickable file paths in backticks (for example `Mei Music/Views/MainWindow.xaml.cs`) and list line numbers or ranges as plain text on a separate line.
-- **Use bullet points**: Present changed-file feedback as bullet points for easier scanning.
+## Delivery format
+- **Changed files with line ranges**: When files are edited, report each changed file with what changed and the affected line range(s).
+- **Readable per-file layout**: Use bullet points; put the clickable path on one line and the explanation on the next line. Include line numbers for each change.
 

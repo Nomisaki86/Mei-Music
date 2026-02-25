@@ -5,15 +5,10 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              mc:Ignorable="d"
              Width="380" Height="430">
-    <Border x:Name="CardBorder" Background="White" Padding="0" ClipToBounds="False">
-        <Border.Effect>
-            <DropShadowEffect BlurRadius="24" ShadowDepth="4" Opacity="0.35" Color="Black" Direction="270"/>
-        </Border.Effect>
+    <Border x:Name="CardBorder"
+            Style="{StaticResource PlaylistOverlayCardContainerStyle}">
         <Grid>
             <Grid.Resources>
-                <!-- Single resource for close-button inset: top and right distance from card edge (change here to adjust both). -->
-                <Thickness x:Key="HeaderCloseInset">0,12,12,0</Thickness>
-                
                 <!-- Button Brushes (Clicking these gives you a color picker in Visual Studio Properties!) -->
                 <SolidColorBrush x:Key="CreateButtonNormalBrush" Color="#FF565C69"/>
                 <SolidColorBrush x:Key="CreateButtonHoverBrush" Color="#FF474658"/>
@@ -32,38 +27,20 @@
             </Grid.RowDefinitions>
 
             <!-- Top banner: full-width drag region with close btn and title; entire area is draggable -->
-            <Border x:Name="HeaderDragBorder" Grid.Row="0" Background="White" Cursor="Arrow" ClipToBounds="False"
+            <Border x:Name="HeaderDragBorder"
+                    Grid.Row="0"
+                    Style="{StaticResource PlaylistOverlayCardHeaderDragStyle}"
                     MouseLeftButtonDown="HeaderDragBorder_MouseLeftButtonDown"
                     MouseMove="HeaderDragBorder_MouseMove"
                     MouseLeftButtonUp="HeaderDragBorder_MouseLeftButtonUp">
-                <Grid>
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="Auto"/>
-                    </Grid.RowDefinitions>
-                    <Button x:Name="CloseButton" Grid.Row="0"
-                            BorderThickness="0" Cursor="Hand" Padding="12,12"
-                            Margin="{StaticResource HeaderCloseInset}"
-                            HorizontalAlignment="Right" VerticalAlignment="Top"
+                <Grid ClipToBounds="False">
+                    <TextBlock Text="Create Playlist"
+                               Style="{StaticResource PlaylistOverlayCardTitleTextStyle}"/>
+                    <Button x:Name="CloseButton"
+                            Panel.ZIndex="10"
+                            Style="{StaticResource PlaylistOverlayCardCloseButtonStyle}"
                             Click="CloseButton_Click">
-                        <Button.Template>
-                            <ControlTemplate TargetType="Button">
-                                <Border x:Name="CloseBtnBorder" Background="Transparent" Padding="{TemplateBinding Padding}">
-                                    <Image x:Name="CloseIcon" Source="/Resources/Images/close.png" Stretch="Uniform"
-                                           Width="18" Height="18" HorizontalAlignment="Center" VerticalAlignment="Center"
-                                           Opacity="0.5"/>
-                                </Border>
-                                <ControlTemplate.Triggers>
-                                    <Trigger Property="IsMouseOver" Value="True">
-                                        <Setter TargetName="CloseIcon" Property="Opacity" Value="0.7"/>
-                                    </Trigger>
-                                </ControlTemplate.Triggers>
-                            </ControlTemplate>
-                        </Button.Template>
                     </Button>
-                    <TextBlock Grid.Row="1" Text="Create Playlist" FontWeight="Bold" FontSize="16" Foreground="#333333"
-                               HorizontalAlignment="Center" VerticalAlignment="Center"
-                               Margin="24,4,24,4" TextWrapping="NoWrap"/>
                 </Grid>
             </Border>
 

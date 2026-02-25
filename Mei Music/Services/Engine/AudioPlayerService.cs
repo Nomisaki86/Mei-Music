@@ -61,8 +61,8 @@ namespace Mei_Music.Services
         /// <summary>
         /// Duration of currently loaded media, or zero if metadata is not available yet.
         /// </summary>
-        public TimeSpan NaturalDuration => _mediaPlayer.NaturalDuration.HasTimeSpan 
-            ? _mediaPlayer.NaturalDuration.TimeSpan 
+        public TimeSpan NaturalDuration => _mediaPlayer.NaturalDuration.HasTimeSpan
+            ? _mediaPlayer.NaturalDuration.TimeSpan
             : TimeSpan.Zero;
 
         /// <summary>

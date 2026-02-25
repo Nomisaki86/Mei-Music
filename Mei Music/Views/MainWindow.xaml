@@ -225,67 +225,88 @@
                     </Grid>
 
                     <!-- When no playlists: show big Create card. When any exist: show list. Header + always opens create dialog. -->
-                    <ScrollViewer Grid.Row="3" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-                        <StackPanel x:Name="PlaylistAlbumsContainer">
-                            <StackPanel.Style>
-                                <Style TargetType="StackPanel">
-                                    <Setter Property="Visibility" Value="Visible"/>
-                                    <Style.Triggers>
-                                        <DataTrigger Binding="{Binding IsChecked, ElementName=PlaylistsToggleButton}" Value="False">
-                                            <Setter Property="Visibility" Value="Collapsed"/>
-                                        </DataTrigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </StackPanel.Style>
+                    <Grid x:Name="PlaylistSidebarScrollScope" Grid.Row="3">
+                        <ScrollViewer x:Name="PlaylistSidebarScrollViewer"
+                                      VerticalScrollBarVisibility="Hidden"
+                                      HorizontalScrollBarVisibility="Disabled"
+                                      ScrollChanged="PlaylistSidebarScrollViewer_ScrollChanged">
+                            <StackPanel x:Name="PlaylistAlbumsContainer">
+                                <StackPanel.Style>
+                                    <Style TargetType="StackPanel">
+                                        <Setter Property="Visibility" Value="Visible"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsChecked, ElementName=PlaylistsToggleButton}" Value="False">
+                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </StackPanel.Style>
 
-                            <!-- Panel 1: visible when CreatedPlaylists.Count == 0 -->
-                            <StackPanel x:Name="CreateFirstPlaylistPanel">
-                                <Button x:Name="CreateFirstPlaylistButton"
-                                        HorizontalAlignment="Stretch"
-                                        Margin="0,2,0,0"
-                                        Content="Create"
-                                        ToolTip="Create playlist"
-                                        Click="OpenCreatePlaylistDialog"
-                                        Style="{StaticResource SidebarActionCardButtonStyle}"/>
+                                <!-- Panel 1: visible when CreatedPlaylists.Count == 0 -->
+                                <StackPanel x:Name="CreateFirstPlaylistPanel">
+                                    <Button x:Name="CreateFirstPlaylistButton"
+                                            HorizontalAlignment="Stretch"
+                                            Margin="0,2,0,0"
+                                            Content="Create"
+                                            ToolTip="Create playlist"
+                                            Click="OpenCreatePlaylistDialog"
+                                            Style="{StaticResource SidebarActionCardButtonStyle}"/>
+                                </StackPanel>
+
+                                <!-- Panel 2: visible when CreatedPlaylists.Count > 0; list of created playlists -->
+                                <ItemsControl x:Name="PlaylistListPanel" ItemsSource="{Binding CreatedPlaylists}" Visibility="Collapsed">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <RadioButton HorizontalAlignment="Stretch" Margin="0,2,0,0" Padding="7,6"
+                                                    HorizontalContentAlignment="Left" Cursor="Hand"
+                                                    Style="{StaticResource SidebarPlaylistCardButtonStyle}"
+                                                    Checked="PlaylistItem_Click"
+                                                    MouseRightButtonUp="PlaylistItem_RightClick">
+                                                <RadioButton.Content>
+                                                    <Grid>
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                            <ColumnDefinition Width="*"/>
+                                                        </Grid.ColumnDefinitions>
+                                                        <Border Width="36" Height="36" CornerRadius="8" Background="#D2D9E3" VerticalAlignment="Center">
+                                                            <Grid>
+                                                                <Grid.OpacityMask>
+                                                                    <VisualBrush>
+                                                                        <VisualBrush.Visual>
+                                                                            <Border Background="Black" Width="36" Height="36" CornerRadius="8"/>
+                                                                        </VisualBrush.Visual>
+                                                                    </VisualBrush>
+                                                                </Grid.OpacityMask>
+                                                                <Image Source="{Binding IconPath, Converter={StaticResource PathToImageSourceConverter}}" Stretch="UniformToFill" Width="36" Height="36" RenderOptions.BitmapScalingMode="HighQuality"/>
+                                                            </Grid>
+                                                        </Border>
+                                                        <TextBlock Grid.Column="1" Text="{Binding Title}" VerticalAlignment="Center" Margin="10,0,0,0"
+                                                                   Foreground="{StaticResource SidebarForegroundBrush}" FontSize="14" TextTrimming="CharacterEllipsis"/>
+                                                    </Grid>
+                                                </RadioButton.Content>
+                                            </RadioButton>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
                             </StackPanel>
+                        </ScrollViewer>
 
-                            <!-- Panel 2: visible when CreatedPlaylists.Count > 0; list of created playlists -->
-                            <ItemsControl x:Name="PlaylistListPanel" ItemsSource="{Binding CreatedPlaylists}" Visibility="Collapsed">
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate>
-                                        <RadioButton HorizontalAlignment="Stretch" Margin="0,2,0,0" Padding="7,6"
-                                                HorizontalContentAlignment="Left" Cursor="Hand"
-                                                Style="{StaticResource SidebarPlaylistCardButtonStyle}"
-                                                Checked="PlaylistItem_Click"
-                                                MouseRightButtonUp="PlaylistItem_RightClick">
-                                            <RadioButton.Content>
-                                                <Grid>
-                                                    <Grid.ColumnDefinitions>
-                                                        <ColumnDefinition Width="Auto"/>
-                                                        <ColumnDefinition Width="*"/>
-                                                    </Grid.ColumnDefinitions>
-                                                    <Border Width="36" Height="36" CornerRadius="8" Background="#D2D9E3" VerticalAlignment="Center">
-                                                        <Grid>
-                                                            <Grid.OpacityMask>
-                                                                <VisualBrush>
-                                                                    <VisualBrush.Visual>
-                                                                        <Border Background="Black" Width="36" Height="36" CornerRadius="8"/>
-                                                                    </VisualBrush.Visual>
-                                                                </VisualBrush>
-                                                            </Grid.OpacityMask>
-                                                            <Image Source="{Binding IconPath, Converter={StaticResource PathToImageSourceConverter}}" Stretch="UniformToFill" Width="36" Height="36" RenderOptions.BitmapScalingMode="HighQuality"/>
-                                                        </Grid>
-                                                    </Border>
-                                                    <TextBlock Grid.Column="1" Text="{Binding Title}" VerticalAlignment="Center" Margin="10,0,0,0"
-                                                               Foreground="{StaticResource SidebarForegroundBrush}" FontSize="14" TextTrimming="CharacterEllipsis"/>
-                                                </Grid>
-                                            </RadioButton.Content>
-                                        </RadioButton>
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
-                        </StackPanel>
-                    </ScrollViewer>
+                        <ScrollBar x:Name="PlaylistOverlayScrollBar"
+                                   Width="10"
+                                   Margin="0,0,2,0"
+                                   HorizontalAlignment="Right"
+                                   VerticalAlignment="Stretch"
+                                   Orientation="Vertical"
+                                   Tag="{Binding IsMouseOver, ElementName=PlaylistSidebarScrollScope}"
+                                   Opacity="0"
+                                   Minimum="0"
+                                   Maximum="0"
+                                   SmallChange="16"
+                                   LargeChange="32"
+                                   Panel.ZIndex="8"
+                                   ValueChanged="PlaylistOverlayScrollBar_ValueChanged"
+                                   Style="{StaticResource AutoHideHostBoundScrollBar}"/>
+                    </Grid>
                 </Grid>
             </Border>
 
@@ -390,29 +411,6 @@
                               Grid.Row="1"
                               Grid.RowSpan="2"
                               Background="#FFE9ECF1">
-                            <Grid.Triggers>
-                                <EventTrigger RoutedEvent="MouseEnter">
-                                    <BeginStoryboard>
-                                        <Storyboard>
-                                            <DoubleAnimation Storyboard.TargetName="SongOverlayScrollBar"
-                                                             Storyboard.TargetProperty="Opacity"
-                                                             To="1"
-                                                             Duration="0:0:0.18"/>
-                                        </Storyboard>
-                                    </BeginStoryboard>
-                                </EventTrigger>
-                                <EventTrigger RoutedEvent="MouseLeave">
-                                    <BeginStoryboard>
-                                        <Storyboard>
-                                            <DoubleAnimation Storyboard.TargetName="SongOverlayScrollBar"
-                                                             Storyboard.TargetProperty="Opacity"
-                                                             To="0"
-                                                             Duration="0:0:0.18"/>
-                                        </Storyboard>
-                                    </BeginStoryboard>
-                                </EventTrigger>
-                            </Grid.Triggers>
-
                             <!-- Song ListView -->
                             <ListView x:Name="UploadedSongList"
                                       Background="#FFE9ECF1"
@@ -465,6 +463,7 @@
                                        HorizontalAlignment="Right"
                                        VerticalAlignment="Stretch"
                                        Orientation="Vertical"
+                                       Tag="{Binding IsMouseOver, ElementName=SongPanelScrollScope}"
                                        Opacity="0"
                                        Minimum="0"
                                        Maximum="0"
@@ -472,7 +471,7 @@
                                        LargeChange="32"
                                        Panel.ZIndex="8"
                                        ValueChanged="SongOverlayScrollBar_ValueChanged"
-                                       Style="{StaticResource CustomScrollBar}"/>
+                                       Style="{StaticResource AutoHideHostBoundScrollBar}"/>
                         </Grid>
 
 
@@ -625,6 +624,20 @@
                 <local:CreatePlaylistCard x:Name="CreatePlaylistCard"
                                           CreateClicked="CreatePlaylistCard_CreateClicked"
                                           CloseRequested="CreatePlaylistCard_CloseRequested"/>
+            </Border>
+        </Grid>
+
+        <!-- Add-to-playlist overlay: centered card -->
+        <Grid x:Name="AddToPlaylistOverlay" Grid.Row="0" Grid.RowSpan="3" Visibility="Collapsed" Panel.ZIndex="110">
+            <Border x:Name="AddToPlaylistCardHost" HorizontalAlignment="Center" VerticalAlignment="Center">
+                <Border.RenderTransform>
+                    <TranslateTransform x:Name="AddToPlaylistCardTransform" X="0" Y="0"/>
+                </Border.RenderTransform>
+                <local:AddToPlaylistCard x:Name="AddToPlaylistCardView"
+                                         CloseRequested="AddToPlaylistCard_CloseRequested"
+                                         CreatePlaylistRequested="AddToPlaylistCard_CreatePlaylistRequested"
+                                         DragMoveDelta="AddToPlaylistCard_DragMoveDelta"
+                                         PlaylistSelected="AddToPlaylistCard_PlaylistSelected"/>
             </Border>
         </Grid>
 

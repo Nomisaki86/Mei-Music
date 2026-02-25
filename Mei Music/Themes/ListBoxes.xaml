@@ -214,6 +214,80 @@
         </Setter>
     </Style>
 
+    <!-- Auto-hide behavior for panel scrollbars: visible only while hovered/dragged. -->
+    <Style x:Key="AutoHidePanelScrollBar"
+           TargetType="ScrollBar"
+           BasedOn="{StaticResource CustomScrollBar}">
+        <Setter Property="Opacity" Value="0"/>
+        <Style.Triggers>
+            <DataTrigger Binding="{Binding IsMouseOver, RelativeSource={RelativeSource TemplatedParent}}"
+                         Value="True">
+                <DataTrigger.EnterActions>
+                    <BeginStoryboard>
+                        <Storyboard>
+                            <DoubleAnimation Storyboard.TargetProperty="Opacity"
+                                             To="1"
+                                             Duration="0:0:0.18"/>
+                        </Storyboard>
+                    </BeginStoryboard>
+                </DataTrigger.EnterActions>
+                <DataTrigger.ExitActions>
+                    <BeginStoryboard>
+                        <Storyboard>
+                            <DoubleAnimation Storyboard.TargetProperty="Opacity"
+                                             To="0"
+                                             Duration="0:0:0.18"/>
+                        </Storyboard>
+                    </BeginStoryboard>
+                </DataTrigger.ExitActions>
+            </DataTrigger>
+            <Trigger Property="IsMouseCaptureWithin" Value="True">
+                <Setter Property="Opacity" Value="1"/>
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
+    <!-- Auto-hide style for scrollbars that receive hover state from a host via Tag. -->
+    <Style x:Key="AutoHideHostBoundScrollBar"
+           TargetType="ScrollBar"
+           BasedOn="{StaticResource CustomScrollBar}">
+        <Setter Property="Opacity" Value="0"/>
+        <Style.Triggers>
+            <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}" Value="True">
+                <DataTrigger.EnterActions>
+                    <BeginStoryboard>
+                        <Storyboard>
+                            <DoubleAnimation Storyboard.TargetProperty="Opacity"
+                                             To="1"
+                                             Duration="0:0:0.18"/>
+                        </Storyboard>
+                    </BeginStoryboard>
+                </DataTrigger.EnterActions>
+                <DataTrigger.ExitActions>
+                    <BeginStoryboard>
+                        <Storyboard>
+                            <DoubleAnimation Storyboard.TargetProperty="Opacity"
+                                             To="0"
+                                             Duration="0:0:0.18"/>
+                        </Storyboard>
+                    </BeginStoryboard>
+                </DataTrigger.ExitActions>
+            </DataTrigger>
+            <Trigger Property="IsMouseCaptureWithin" Value="True">
+                <Setter Property="Opacity" Value="1"/>
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
+    <!-- Shared ScrollViewer style that applies the custom scrollbar format. -->
+    <Style x:Key="PanelListScrollViewerStyle" TargetType="ScrollViewer">
+        <Setter Property="VerticalScrollBarVisibility" Value="Auto"/>
+        <Setter Property="HorizontalScrollBarVisibility" Value="Disabled"/>
+        <Style.Resources>
+            <Style TargetType="ScrollBar" BasedOn="{StaticResource AutoHidePanelScrollBar}"/>
+        </Style.Resources>
+    </Style>
+
     <!-- Optional ListBox template that wires the custom scrollbar style. -->
     <Style TargetType="ListBox" x:Key="CustomListBox">
         <Setter Property="Template">

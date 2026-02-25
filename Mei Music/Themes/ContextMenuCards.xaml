@@ -6,6 +6,76 @@
         These styles keep both cards visually aligned while allowing different button sets per card.
     -->
 
+    <!-- Shared shell + header visuals for large overlay cards (Create/Add playlist). -->
+    <Thickness x:Key="PlaylistOverlayCardHeaderCloseInset">0,12,12,0</Thickness>
+
+    <Style x:Key="PlaylistOverlayCardContainerStyle" TargetType="Border">
+        <Setter Property="Background" Value="White"/>
+        <Setter Property="Padding" Value="0"/>
+        <Setter Property="CornerRadius" Value="15"/>
+        <Setter Property="ClipToBounds" Value="False"/>
+        <Setter Property="SnapsToDevicePixels" Value="True"/>
+        <Setter Property="Effect">
+            <Setter.Value>
+                <DropShadowEffect BlurRadius="24"
+                                  ShadowDepth="4"
+                                  Opacity="0.35"
+                                  Direction="270"
+                                  Color="#000000"/>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="PlaylistOverlayCardHeaderDragStyle" TargetType="Border">
+        <Setter Property="Background" Value="White"/>
+        <Setter Property="Cursor" Value="Arrow"/>
+        <Setter Property="ClipToBounds" Value="False"/>
+        <Setter Property="CornerRadius" Value="15,15,0,0"/>
+    </Style>
+
+    <Style x:Key="PlaylistOverlayCardCloseButtonStyle" TargetType="Button">
+        <Setter Property="BorderThickness" Value="0"/>
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="Padding" Value="12,12"/>
+        <Setter Property="Margin" Value="{StaticResource PlaylistOverlayCardHeaderCloseInset}"/>
+        <Setter Property="HorizontalAlignment" Value="Right"/>
+        <Setter Property="VerticalAlignment" Value="Top"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="CloseBtnBorder"
+                            Background="Transparent"
+                            Padding="{TemplateBinding Padding}">
+                        <Image x:Name="CloseIcon"
+                               Source="/Resources/Images/close.png"
+                               Width="18"
+                               Height="18"
+                               Stretch="Uniform"
+                               HorizontalAlignment="Center"
+                               VerticalAlignment="Center"
+                               Opacity="0.5"/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="CloseIcon" Property="Opacity" Value="0.7"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="PlaylistOverlayCardTitleTextStyle" TargetType="TextBlock">
+        <Setter Property="FontWeight" Value="Bold"/>
+        <!--Card Title font size-->
+        <Setter Property="FontSize" Value="26"/>
+        <Setter Property="Foreground" Value="#333333"/>
+        <Setter Property="HorizontalAlignment" Value="Center"/>
+        <Setter Property="VerticalAlignment" Value="Center"/>
+        <Setter Property="Margin" Value="24,40,24,0"/>
+        <Setter Property="TextWrapping" Value="NoWrap"/>
+    </Style>
+
     <!-- Outer floating card shell (rounded corners + subtle drop shadow). -->
     <Style x:Key="ContextMenuCardContainerBorderStyle" TargetType="Border">
         <Setter Property="Background" Value="White"/>

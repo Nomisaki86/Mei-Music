@@ -1,26 +1,14 @@
 ---
-description: Token-budget defaults for efficient agent chats
 alwaysApply: true
 ---
+# Token Budget Defaults
 
-# Token Budget Mode
-
-## Communication
-- Be concise by default; expand only when the user asks for detail.
-- Keep intermediate updates short and infrequent for simple tasks.
-- Keep final summaries brief: key result, changed files, blockers/next step.
-
-## Tool-use efficiency
-- Prefer targeted searches (`rg` with path/glob) over repository-wide scans.
-- Avoid duplicate reads/calls when previous output is still sufficient.
-- Read large files in focused ranges first; expand only when required.
-- Batch independent read/search steps in parallel to reduce turn count.
-
-## Expensive operations
-- Ask before costly operations (full builds/tests, broad scans, network-heavy actions) unless explicitly requested.
-- For small, low-risk edits, skip full build/test by default and note what was not run.
-- For debugging, request minimal relevant log excerpts instead of full logs.
-
-## Clarification policy
+- Be concise by default; expand only on request.
+- Keep progress updates brief for simple tasks; use periodic updates for longer tasks.
+- Prefer targeted searches/reads and avoid repeating the same lookups.
+- Read focused file ranges first, then expand only if needed.
+- Batch independent read/search steps when possible.
+- Ask before expensive operations (full builds/tests, broad scans, network-heavy steps) unless the user requested them.
+- For small, low-risk edits, skip full build/test by default and state what was not run.
 - If scope is unclear, ask one focused question before broad exploration.
-- If the user asks for deep review/validation, prioritize completeness over token savings.
+- If the user explicitly requests deep review/validation, prioritize completeness over token savings.

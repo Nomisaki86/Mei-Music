@@ -4,7 +4,9 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Threading;
 
 namespace Mei_Music
 {
@@ -29,29 +31,16 @@ namespace Mei_Music
         public event EventHandler? CloseRequested;
         public event EventHandler? CreatePlaylistRequested;
         public event EventHandler<PlaylistSelectedEventArgs>? PlaylistSelected;
+        public event EventHandler<DragMoveDeltaEventArgs>? DragMoveDelta;
 
-        private static readonly Brush ActiveSortBrush = new SolidColorBrush(Color.FromRgb(74, 83, 101));
-        private static readonly Brush InactiveSortBrush = new SolidColorBrush(Color.FromRgb(160, 167, 181));
         private IReadOnlyList<CreatedPlaylist> _playlists = Array.Empty<CreatedPlaylist>();
-        private bool _sortByMostSongs;
-
-        static AddToPlaylistCard()
-        {
-            if (ActiveSortBrush.CanFreeze)
-            {
-                ActiveSortBrush.Freeze();
-            }
-
-            if (InactiveSortBrush.CanFreeze)
-            {
-                InactiveSortBrush.Freeze();
-            }
-        }
+        private bool _isSyncingOverlayScrollBar;
+        private Point _dragStart;
 
         public AddToPlaylistCard()
         {
             InitializeComponent();
-            SetSortMode(sortByMostSongs: false);
+            Loaded += AddToPlaylistCard_Loaded;
         }
 
         /// <summary>
@@ -60,33 +49,88 @@ namespace Mei_Music
         public void LoadPlaylists(IEnumerable<CreatedPlaylist> playlists)
         {
             _playlists = playlists.ToList();
-            SetSortMode(sortByMostSongs: false);
+            PlaylistItemsControl.ItemsSource = _playlists;
+            NoPlaylistsText.Visibility = _playlists.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+
+            Dispatcher.BeginInvoke(SyncOverlayScrollBar, DispatcherPriority.Loaded);
         }
 
-        private static int SongCount(CreatedPlaylist playlist)
+        private void AddToPlaylistCard_Loaded(object sender, RoutedEventArgs e)
         {
-            return playlist.SongNames?.Count ?? 0;
+            Dispatcher.BeginInvoke(SyncOverlayScrollBar, DispatcherPriority.Loaded);
         }
 
-        private void SetSortMode(bool sortByMostSongs)
+        private void CardScrollViewer_ScrollChanged(object sender, ScrollChangedEventArgs e)
         {
-            _sortByMostSongs = sortByMostSongs;
+            SyncOverlayScrollBar();
+        }
 
-            IEnumerable<CreatedPlaylist> ordered = _sortByMostSongs
-                ? _playlists
-                    .OrderByDescending(SongCount)
-                    .ThenBy(p => p.Title, StringComparer.CurrentCultureIgnoreCase)
-                : _playlists
-                    .OrderBy(p => p.Title, StringComparer.CurrentCultureIgnoreCase);
+        private void SyncOverlayScrollBar()
+        {
+            if (CardOverlayScrollBar == null)
+            {
+                return;
+            }
 
-            List<CreatedPlaylist> orderedList = ordered.ToList();
-            PlaylistItemsControl.ItemsSource = orderedList;
-            NoPlaylistsText.Visibility = orderedList.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+            _isSyncingOverlayScrollBar = true;
+            try
+            {
+                if (CardScrollViewer == null)
+                {
+                    CardOverlayScrollBar.Visibility = Visibility.Collapsed;
+                    CardOverlayScrollBar.Maximum = 0;
+                    CardOverlayScrollBar.ViewportSize = 0;
+                    CardOverlayScrollBar.Value = 0;
+                    return;
+                }
 
-            DefaultSortText.FontWeight = _sortByMostSongs ? FontWeights.Normal : FontWeights.SemiBold;
-            DefaultSortText.Foreground = _sortByMostSongs ? InactiveSortBrush : ActiveSortBrush;
-            MostSongsSortText.FontWeight = _sortByMostSongs ? FontWeights.SemiBold : FontWeights.Normal;
-            MostSongsSortText.Foreground = _sortByMostSongs ? ActiveSortBrush : InactiveSortBrush;
+                double max = Math.Max(0, CardScrollViewer.ScrollableHeight);
+                CardOverlayScrollBar.Visibility = max > 0 ? Visibility.Visible : Visibility.Collapsed;
+                CardOverlayScrollBar.Maximum = max;
+                CardOverlayScrollBar.ViewportSize = Math.Max(0, CardScrollViewer.ViewportHeight);
+                CardOverlayScrollBar.LargeChange = Math.Max(1, CardScrollViewer.ViewportHeight * 0.9);
+                CardOverlayScrollBar.Value = Math.Clamp(CardScrollViewer.VerticalOffset, 0, max);
+            }
+            finally
+            {
+                _isSyncingOverlayScrollBar = false;
+            }
+        }
+
+        private void CardOverlayScrollBar_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+        {
+            if (_isSyncingOverlayScrollBar)
+            {
+                return;
+            }
+
+            CardScrollViewer?.ScrollToVerticalOffset(e.NewValue);
+        }
+
+        private void HeaderDragBorder_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            _dragStart = e.GetPosition(null);
+            HeaderDragBorder.CaptureMouse();
+        }
+
+        private void HeaderDragBorder_MouseMove(object sender, MouseEventArgs e)
+        {
+            if (HeaderDragBorder.IsMouseCaptured && e.LeftButton == MouseButtonState.Pressed)
+            {
+                Point current = e.GetPosition(null);
+                double dx = current.X - _dragStart.X;
+                double dy = current.Y - _dragStart.Y;
+                _dragStart = current;
+                DragMoveDelta?.Invoke(this, new DragMoveDeltaEventArgs(dx, dy));
+            }
+        }
+
+        private void HeaderDragBorder_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+        {
+            if (HeaderDragBorder.IsMouseCaptured)
+            {
+                HeaderDragBorder.ReleaseMouseCapture();
+            }
         }
 
         private void CloseButton_Click(object sender, RoutedEventArgs e)
@@ -107,14 +151,5 @@ namespace Mei_Music
             }
         }
 
-        private void DefaultSortButton_Click(object sender, RoutedEventArgs e)
-        {
-            SetSortMode(sortByMostSongs: false);
-        }
-
-        private void MostSongsSortButton_Click(object sender, RoutedEventArgs e)
-        {
-            SetSortMode(sortByMostSongs: true);
-        }
     }
 }

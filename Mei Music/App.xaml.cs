@@ -1,4 +1,4 @@
-﻿using System.Windows;
+using System.Windows;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Mei_Music.Services;
@@ -28,6 +28,8 @@ namespace Mei_Music
                     // Register Services
                     services.AddSingleton<IFileService, FileService>();
                     services.AddSingleton<IPlaylistSortService, PlaylistSortService>();
+                    services.AddSingleton<IPlaybackCoordinator, PlaybackCoordinator>();
+                    services.AddSingleton<IMediaImportService, MediaImportService>();
                     services.AddSingleton<IAudioPlayerService, AudioPlayerService>();
                     services.AddSingleton<IDialogService, DialogService>();
 

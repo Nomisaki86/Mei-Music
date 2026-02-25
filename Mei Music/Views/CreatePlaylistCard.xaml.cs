@@ -8,10 +8,9 @@ using Microsoft.Win32;
 
 namespace Mei_Music
 {
-    /// <summary>Single source of truth for card corner radius (change once to affect main card and header).</summary>
+    /// <summary>Constants used by the create-playlist card UI behavior.</summary>
     internal static class CreatePlaylistCardConstants
     {
-        public const double CornerRadius = 15;
         /// <summary>Max length for the playlist title input; also used for character count display.</summary>
         public const int TitleMaxLength = 40;
     }
@@ -98,9 +97,6 @@ namespace Mei_Music
         public CreatePlaylistCard()
         {
             InitializeComponent();
-            double r = CreatePlaylistCardConstants.CornerRadius;
-            CardBorder.CornerRadius = new CornerRadius(r);
-            HeaderDragBorder.CornerRadius = new CornerRadius(r, r, 0, 0);
             UpdateCharCount();
             UpdateCreateButtonState();
         }

@@ -13,13 +13,19 @@ Purpose: quick routing guide so agents start in the right files and avoid broad 
 - `Mei Music/ViewModels/MainViewModel.cs`
   Main app state and commands: playback control, song actions, playlist CRUD, refresh/sort, persistence delegation.
 
-- `Mei Music/Services/FileService.cs`
+- `Mei Music/Services/Engine/FileService.cs`
   JSON persistence for songs/playlists.
 
-- `Mei Music/Services/AudioPlayerService.cs`
+- `Mei Music/Services/Engine/AudioPlayerService.cs`
   Playback engine abstraction implementation.
 
-- `Mei Music/Services/DialogService.cs`
+- `Mei Music/Services/Engine/PlaybackCoordinator.cs`
+  Playback flow coordination for list-based transport logic (current-song matching, prev/next wrap, row double-click tracking).
+
+- `Mei Music/Services/MediaImportService.cs`
+  Local import/conversion pipeline (extension checks, duplicate policy hooks, ffmpeg audio extraction, metadata duration refresh).
+
+- `Mei Music/Services/UI/DialogService.cs`
   App dialogs and prompt interactions.
 
 ## Models
@@ -110,10 +116,13 @@ Use this section first before searching.
   - Start: `SongRowView.xaml`, `SongRowView.xaml.cs`, `MainWindow.xaml.cs`
 
 - Playback issues (play/pause/seek/ended/volume)
-  - Start: `MainViewModel.cs`, `AudioPlayerService.cs`, `MainWindow.xaml.cs`
+  - Start: `MainViewModel.cs`, `AudioPlayerService.cs`, `PlaybackCoordinator.cs`, `MainWindow.xaml.cs`
 
 - Persistence/data loading issues (songs/playlists)
   - Start: `FileService.cs`, `IFileService.cs`, `MainWindow.xaml.cs`, `MainViewModel.cs`
+
+- Local file import/conversion issues
+  - Start: `MediaImportService.cs`, `IMediaImportService.cs`, `MainWindow.xaml.cs`, `SearchThroughURLWindow.xaml.cs`
 
 - Styling tweaks for context menus/cards
   - Start: `Themes/ContextMenuCards.xaml`, then specific card XAML in `Views/`
