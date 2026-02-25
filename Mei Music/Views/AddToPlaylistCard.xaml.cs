@@ -28,6 +28,18 @@ namespace Mei_Music
     /// </summary>
     public partial class AddToPlaylistCard : UserControl
     {
+        private sealed class PlaylistRowItem
+        {
+            public PlaylistRowItem(CreatedPlaylist playlist, bool containsCurrentSong)
+            {
+                Playlist = playlist;
+                ContainsCurrentSong = containsCurrentSong;
+            }
+
+            public CreatedPlaylist Playlist { get; }
+            public bool ContainsCurrentSong { get; }
+        }
+
         public event EventHandler? CloseRequested;
         public event EventHandler? CreatePlaylistRequested;
         public event EventHandler<PlaylistSelectedEventArgs>? PlaylistSelected;
@@ -44,15 +56,32 @@ namespace Mei_Music
         }
 
         /// <summary>
-        /// Loads playlists and refreshes the card list with default sorting.
+        /// Loads playlists and refreshes the card list.
+        /// Preserves the incoming playlist order and marks rows that already contain the provided song.
         /// </summary>
-        public void LoadPlaylists(IEnumerable<CreatedPlaylist> playlists)
+        public void LoadPlaylists(IEnumerable<CreatedPlaylist> playlists, Song? currentSong)
         {
             _playlists = playlists.ToList();
-            PlaylistItemsControl.ItemsSource = _playlists;
-            NoPlaylistsText.Visibility = _playlists.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+            string? currentSongName = currentSong?.Name;
+            var rows = _playlists
+                .Select(playlist => new PlaylistRowItem(playlist, PlaylistContainsSong(playlist, currentSongName)))
+                .ToList();
+
+            PlaylistItemsControl.ItemsSource = rows;
+            NoPlaylistsText.Visibility = rows.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
 
             Dispatcher.BeginInvoke(SyncOverlayScrollBar, DispatcherPriority.Loaded);
+        }
+
+        private static bool PlaylistContainsSong(CreatedPlaylist playlist, string? songName)
+        {
+            if (string.IsNullOrWhiteSpace(songName) || playlist.SongNames == null)
+            {
+                return false;
+            }
+
+            return playlist.SongNames.Any(name =>
+                string.Equals(name, songName, StringComparison.OrdinalIgnoreCase));
         }
 
         private void AddToPlaylistCard_Loaded(object sender, RoutedEventArgs e)

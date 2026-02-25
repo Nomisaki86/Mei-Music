@@ -68,7 +68,7 @@
     <Style x:Key="PlaylistOverlayCardTitleTextStyle" TargetType="TextBlock">
         <Setter Property="FontWeight" Value="Bold"/>
         <!--Card Title font size-->
-        <Setter Property="FontSize" Value="26"/>
+        <Setter Property="FontSize" Value="20"/>
         <Setter Property="Foreground" Value="#333333"/>
         <Setter Property="HorizontalAlignment" Value="Center"/>
         <Setter Property="VerticalAlignment" Value="Center"/>

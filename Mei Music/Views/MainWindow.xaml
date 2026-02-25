@@ -480,7 +480,7 @@
             </Grid>
             
             <!--Play bar-->
-            <Grid Grid.Row="1" Grid.ColumnSpan="3" Height="68" Background="#FFECEFF1">
+            <Grid x:Name="PlayBarHost" Grid.Row="1" Grid.ColumnSpan="3" Height="68" Background="#FFECEFF1">
                 <Grid Margin="0,10">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="120"/>
@@ -616,7 +616,12 @@
         </Grid>
 
         <!-- Create Playlist overlay: centered card -->
-        <Grid x:Name="CreatePlaylistOverlay" Grid.Row="0" Grid.RowSpan="3" Visibility="Collapsed" Panel.ZIndex="100">
+        <Grid x:Name="CreatePlaylistOverlay"
+              Grid.Row="0"
+              Grid.RowSpan="3"
+              Visibility="Collapsed"
+              Panel.ZIndex="100"
+              Background="Transparent">
             <Border x:Name="CreatePlaylistCardHost" HorizontalAlignment="Center" VerticalAlignment="Center">
                 <Border.RenderTransform>
                     <TranslateTransform x:Name="CreatePlaylistCardTransform" X="0" Y="0"/>
@@ -628,7 +633,12 @@
         </Grid>
 
         <!-- Add-to-playlist overlay: centered card -->
-        <Grid x:Name="AddToPlaylistOverlay" Grid.Row="0" Grid.RowSpan="3" Visibility="Collapsed" Panel.ZIndex="110">
+        <Grid x:Name="AddToPlaylistOverlay"
+              Grid.Row="0"
+              Grid.RowSpan="3"
+              Visibility="Collapsed"
+              Panel.ZIndex="110"
+              Background="Transparent">
             <Border x:Name="AddToPlaylistCardHost" HorizontalAlignment="Center" VerticalAlignment="Center">
                 <Border.RenderTransform>
                     <TranslateTransform x:Name="AddToPlaylistCardTransform" X="0" Y="0"/>
@@ -638,6 +648,37 @@
                                          CreatePlaylistRequested="AddToPlaylistCard_CreatePlaylistRequested"
                                          DragMoveDelta="AddToPlaylistCard_DragMoveDelta"
                                          PlaylistSelected="AddToPlaylistCard_PlaylistSelected"/>
+            </Border>
+        </Grid>
+
+        <!-- Non-blocking in-app toast (does not intercept mouse). -->
+        <Grid x:Name="InlineToastOverlay"
+              Grid.Row="0"
+              Grid.RowSpan="3"
+              Panel.ZIndex="300"
+              IsHitTestVisible="False"
+              Visibility="Collapsed">
+            <Border x:Name="InlineToastHost"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center"
+                    Padding="14,10"
+                    Background="#2C2F3B"
+                    CornerRadius="24"
+                    Opacity="0">
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <Ellipse x:Name="InlineToastStatusDot"
+                             Width="12"
+                             Height="12"
+                             Fill="#F04E4E"
+                             Margin="0,0,8,0"
+                             VerticalAlignment="Center"/>
+                    <TextBlock x:Name="InlineToastText"
+                               Text="Song already in playlist"
+                               Foreground="White"
+                               FontSize="14"
+                               FontWeight="SemiBold"
+                               VerticalAlignment="Center"/>
+                </StackPanel>
             </Border>
         </Grid>
 

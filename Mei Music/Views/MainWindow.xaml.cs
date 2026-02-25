@@ -161,6 +161,7 @@ namespace Mei_Music
             CreatePlaylistCard.DragMoveDelta += CreatePlaylistCard_DragMoveDelta;
             ViewModel.CreatedPlaylists.CollectionChanged += (_, _) => UpdatePlaylistSidebarVisibility();
             UpdatePlaylistSidebarVisibility();
+            _inlineToastHideTimer.Tick += InlineToastHideTimer_Tick;
             Loaded += MainWindow_Loaded;
         }
 
@@ -426,7 +427,11 @@ namespace Mei_Music
                 bool wasAdded = TryAddSongToPlaylist(playlist, pendingSong);
                 if (wasAdded)
                 {
-                    MessageBox.Show($"Added \"{pendingSong.Name}\" to \"{playlist.Title}\".", "Playlist Updated", MessageBoxButton.OK, MessageBoxImage.Information);
+                    ShowInlineToast($"Added to \"{playlist.Title}\"", isSuccess: true);
+                }
+                else
+                {
+                    ShowInlineToast("Song already in playlist", isSuccess: false);
                 }
 
                 _pendingAddToPlaylistSong = null;
@@ -449,6 +454,10 @@ namespace Mei_Music
         /// Song currently being added from the add-to-playlist flow.
         /// </summary>
         private Song? _pendingAddToPlaylistSong;
+        /// <summary>Auto-hide timer for non-blocking inline toast notifications.</summary>
+        private readonly DispatcherTimer _inlineToastHideTimer = new DispatcherTimer();
+        private static readonly SolidColorBrush InlineToastSuccessBrush = CreateInlineToastBrush(0x3F, 0xC7, 0x6A);
+        private static readonly SolidColorBrush InlineToastErrorBrush = CreateInlineToastBrush(0xF0, 0x4E, 0x4E);
 
         // Pointer Gap
         private const double ContextMenuPointerGap = 15;
@@ -553,7 +562,7 @@ namespace Mei_Music
         private void OpenAddToPlaylistOverlay(Song song)
         {
             _pendingAddToPlaylistSong = song;
-            AddToPlaylistCardView.LoadPlaylists(ViewModel.CreatedPlaylists);
+            AddToPlaylistCardView.LoadPlaylists(ViewModel.CreatedPlaylists, song);
             AddToPlaylistCardTransform.X = 0;
             AddToPlaylistCardTransform.Y = 0;
             AddToPlaylistOverlay.Visibility = Visibility.Visible;
@@ -894,13 +903,111 @@ namespace Mei_Music
             }
 
             bool wasAdded = TryAddSongToPlaylist(e.Playlist, targetSong);
-            string message = wasAdded
-                ? $"Added \"{targetSong.Name}\" to \"{e.Playlist.Title}\"."
-                : $"\"{targetSong.Name}\" is already in \"{e.Playlist.Title}\".";
-            string title = wasAdded ? "Playlist Updated" : "Already in Playlist";
+            if (wasAdded)
+            {
+                ShowInlineToast($"Added to \"{e.Playlist.Title}\"", isSuccess: true);
+                CloseAddToPlaylistOverlay(clearPendingSong: true);
+            }
+            else
+            {
+                ShowInlineToast("Song already in playlist", isSuccess: false);
+            }
+        }
 
-            MessageBox.Show(message, title, MessageBoxButton.OK, MessageBoxImage.Information);
-            CloseAddToPlaylistOverlay(clearPendingSong: true);
+        private void InlineToastHideTimer_Tick(object? sender, EventArgs e)
+        {
+            HideInlineToast();
+        }
+
+        private void ShowInlineToast(string message, bool isSuccess)
+        {
+            if (InlineToastOverlay == null || InlineToastHost == null || InlineToastText == null || InlineToastStatusDot == null)
+            {
+                return;
+            }
+
+            _inlineToastHideTimer.Stop();
+            InlineToastText.Text = message;
+            InlineToastStatusDot.Fill = isSuccess ? InlineToastSuccessBrush : InlineToastErrorBrush;
+            InlineToastHost.CornerRadius = new CornerRadius(Math.Max(0, AppUiSettings.InlineToastCornerRadius));
+            PositionInlineToast();
+            _inlineToastHideTimer.Interval = TimeSpan.FromSeconds(Math.Max(0.1, AppUiSettings.InlineToastDurationSeconds));
+            InlineToastOverlay.Visibility = Visibility.Visible;
+            InlineToastHost.Opacity = 1;
+            _inlineToastHideTimer.Start();
+        }
+
+        private void HideInlineToast()
+        {
+            _inlineToastHideTimer.Stop();
+            if (InlineToastOverlay == null || InlineToastHost == null)
+            {
+                return;
+            }
+
+            InlineToastHost.Opacity = 0;
+            InlineToastOverlay.Visibility = Visibility.Collapsed;
+        }
+
+        private void PositionInlineToast()
+        {
+            if (InlineToastHost == null || InlineToastOverlay == null)
+            {
+                return;
+            }
+
+            double toastWidth = InlineToastHost.ActualWidth;
+            double toastHeight = InlineToastHost.ActualHeight;
+
+            if (toastWidth <= 0) toastWidth = 220;
+            if (toastHeight <= 0) toastHeight = 44;
+
+            double left;
+            double top;
+
+            switch (AppUiSettings.ToastPlacementMode)
+            {
+                case AppUiSettings.InlineToastPlacementMode.MouseAnchored:
+                {
+                    Point mousePoint = Mouse.GetPosition(this);
+                    left = mousePoint.X - (toastWidth / 2) + AppUiSettings.MouseAnchoredToastOffsetX;
+                    top = mousePoint.Y - (toastHeight / 2) + AppUiSettings.MouseAnchoredToastOffsetY;
+                    break;
+                }
+                case AppUiSettings.InlineToastPlacementMode.BottomCenterAbovePlayBar:
+                {
+                    Point playBarTopLeft = PlayBarHost?.TranslatePoint(new Point(0, 0), this) ?? new Point(0, ActualHeight - 68);
+                    double playBarTop = playBarTopLeft.Y;
+                    left = ((ActualWidth - toastWidth) / 2) + AppUiSettings.BottomCenterToastOffsetX;
+                    top = (playBarTop - toastHeight - 10) + AppUiSettings.BottomCenterToastOffsetY;
+                    break;
+                }
+                default:
+                    left = (ActualWidth - toastWidth) / 2;
+                    top = (ActualHeight - toastHeight) / 2;
+                    break;
+            }
+
+            double maxLeft = Math.Max(0, ActualWidth - toastWidth - 8);
+            double maxTop = Math.Max(0, ActualHeight - toastHeight - 8);
+
+            left = Math.Clamp(left, 8, maxLeft);
+            top = Math.Clamp(top, 8, maxTop);
+
+            InlineToastHost.HorizontalAlignment = HorizontalAlignment.Left;
+            InlineToastHost.VerticalAlignment = VerticalAlignment.Top;
+            InlineToastHost.Margin = new Thickness(left, top, 0, 0);
+        }
+
+        private static SolidColorBrush CreateInlineToastBrush(byte red, byte green, byte blue)
+        {
+            var brush = new SolidColorBrush(Color.FromRgb(red, green, blue));
+            if (brush.CanFreeze)
+            {
+                brush.Freeze();
+            }
+
+            return brush;
         }
 
         /// <summary>
@@ -1781,6 +1888,11 @@ namespace Mei_Music
         /// </summary>
         private void OnMainWindowPreviewMouseDown(object sender, MouseButtonEventArgs e)
         {
+            if (InlineToastOverlay.Visibility == Visibility.Visible)
+            {
+                HideInlineToast();
+            }
+
             if (ShouldDismissContextMenu(SongContextMenuOverlay, SongContextMenu))
             {
                 CloseSongContextMenu(clearTarget: true);
@@ -1789,11 +1901,6 @@ namespace Mei_Music
             if (ShouldDismissContextMenu(PlaylistContextMenuOverlay, PlaylistContextMenuCard))
             {
                 ClosePlaylistContextMenu();
-            }
-
-            if (ShouldDismissContextMenu(AddToPlaylistOverlay, AddToPlaylistCardView))
-            {
-                CloseAddToPlaylistOverlay(clearPendingSong: true);
             }
 
             // Close the Popup if the click is outside the Popup
@@ -1816,7 +1923,6 @@ namespace Mei_Music
         {
             CloseSongContextMenu(clearTarget: true);
             ClosePlaylistContextMenu();
-            CloseAddToPlaylistOverlay(clearPendingSong: true);
 
             // Close the dropdown if the application loses focus
             if (PlusPopupMenu.IsOpen)

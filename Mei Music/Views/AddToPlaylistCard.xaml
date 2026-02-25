@@ -5,22 +5,22 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:converters="clr-namespace:Mei_Music.Converters"
              mc:Ignorable="d"
-             Width="400"
-             Height="420">
+             Width="300"
+             Height="400">
     <UserControl.Resources>
         <converters:PathToImageSourceConverter x:Key="PathToImageSourceConverter"/>
 
         <Style x:Key="AddToPlaylistRowButtonStyle"
                TargetType="Button"
                BasedOn="{StaticResource ContextMenuCardActionButtonStyle}">
-            <Setter Property="Margin" Value="0,0,0,10"/>
+            <Setter Property="Margin" Value="0,0,0,8"/>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
                         <Border x:Name="BtnBorder"
                                 Background="Transparent"
-                                CornerRadius="12"
-                                Padding="10,8">
+                                CornerRadius="10"
+                                Padding="8,6">
                             <ContentPresenter HorizontalAlignment="Stretch"
                                               VerticalAlignment="Center"/>
                         </Border>
@@ -84,20 +84,20 @@
                         <Button x:Name="CreatePlaylistButton"
                                 Style="{StaticResource AddToPlaylistRowButtonStyle}"
                                 Click="CreatePlaylistButton_Click"
-                                Margin="0,0,0,12">
+                                Margin="0,0,0,8">
                             <Grid>
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="Auto"/>
                                     <ColumnDefinition Width="*"/>
                                 </Grid.ColumnDefinitions>
 
-                                <Border Width="56"
-                                        Height="56"
-                                        CornerRadius="12"
+                                <Border Width="48"
+                                        Height="48"
+                                        CornerRadius="10"
                                         Background="#DDE2EB"
                                         VerticalAlignment="Center">
                                     <TextBlock Text="+"
-                                               FontSize="28"
+                                               FontSize="24"
                                                FontWeight="Light"
                                                Foreground="#3B4458"
                                                HorizontalAlignment="Center"
@@ -107,8 +107,8 @@
 
                                 <TextBlock Grid.Column="1"
                                            Text="Create New Playlist"
-                                           Margin="14,0,0,0"
-                                           FontSize="15"
+                                           Margin="12,0,0,0"
+                                           FontSize="14"
                                            FontWeight="SemiBold"
                                            VerticalAlignment="Center"
                                            Foreground="#3B4458"/>
@@ -119,45 +119,84 @@
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
                                     <Button Style="{StaticResource AddToPlaylistRowButtonStyle}"
-                                            Tag="{Binding}"
+                                            Tag="{Binding Playlist}"
                                             Click="PlaylistButton_Click">
                                         <Grid>
                                             <Grid.ColumnDefinitions>
                                                 <ColumnDefinition Width="Auto"/>
                                                 <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
                                             </Grid.ColumnDefinitions>
 
-                                            <Border Width="56"
-                                                    Height="56"
-                                                    CornerRadius="12"
+                                            <Border Width="48"
+                                                    Height="48"
+                                                    CornerRadius="10"
                                                     Background="#DDE2EB"
-                                                    VerticalAlignment="Center"
-                                                    ClipToBounds="True">
-                                                <Grid>
+                                                    VerticalAlignment="Center">
+                                                <Grid SnapsToDevicePixels="True"
+                                                      UseLayoutRounding="True">
+                                                    <!-- Clip icon content to rounded corners (same approach as sidebar playlist cards). -->
+                                                    <Grid.OpacityMask>
+                                                        <VisualBrush>
+                                                            <VisualBrush.Visual>
+                                                                <Border Background="Black"
+                                                                        Width="48"
+                                                                        Height="48"
+                                                                        CornerRadius="10"/>
+                                                            </VisualBrush.Visual>
+                                                        </VisualBrush>
+                                                    </Grid.OpacityMask>
+
                                                     <Rectangle Fill="White"
                                                                Opacity="0.85">
                                                         <Rectangle.OpacityMask>
                                                             <ImageBrush ImageSource="/Resources/Images/music-player.png"
-                                                                        Stretch="Uniform"/>
+                                                                        Stretch="Uniform"
+                                                                        RenderOptions.BitmapScalingMode="HighQuality"/>
                                                         </Rectangle.OpacityMask>
                                                     </Rectangle>
-                                                    <Image Source="{Binding IconPath, Converter={StaticResource PathToImageSourceConverter}}"
-                                                           Stretch="UniformToFill"/>
+                                                    <Image Source="{Binding Playlist.IconPath, Converter={StaticResource PathToImageSourceConverter}}"
+                                                           Stretch="UniformToFill"
+                                                           Width="48"
+                                                           Height="48"
+                                                           SnapsToDevicePixels="True"
+                                                           UseLayoutRounding="True"
+                                                           RenderOptions.BitmapScalingMode="HighQuality"/>
                                                 </Grid>
                                             </Border>
 
                                             <StackPanel Grid.Column="1"
-                                                        Margin="14,0,0,0"
+                                                        Margin="12,0,0,0"
                                                         VerticalAlignment="Center">
-                                                <TextBlock Text="{Binding Title}"
-                                                           FontSize="15"
+                                                <TextBlock Text="{Binding Playlist.Title}"
+                                                           FontSize="14"
                                                            FontWeight="SemiBold"
                                                            Foreground="#3A4356"
                                                            TextTrimming="CharacterEllipsis"/>
-                                                <TextBlock Text="{Binding SongNames.Count, StringFormat={}{0} songs}"
-                                                           FontSize="12"
+                                                <TextBlock Text="{Binding Playlist.SongNames.Count, StringFormat={}{0} songs}"
+                                                           FontSize="11"
                                                            Foreground="#7A8393"/>
                                             </StackPanel>
+
+                                            <Ellipse Grid.Column="2"
+                                                     Width="12"
+                                                     Height="12"
+                                                     Margin="12,0,2,0"
+                                                     VerticalAlignment="Center">
+                                                <Ellipse.Style>
+                                                    <Style TargetType="Ellipse">
+                                                        <Setter Property="Stroke" Value="#9AA3B1"/>
+                                                        <Setter Property="StrokeThickness" Value="1.6"/>
+                                                        <Setter Property="Fill" Value="Transparent"/>
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding ContainsCurrentSong}" Value="True">
+                                                                <Setter Property="Fill" Value="#4A5365"/>
+                                                                <Setter Property="Stroke" Value="#4A5365"/>
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </Ellipse.Style>
+                                            </Ellipse>
                                         </Grid>
                                     </Button>
                                 </DataTemplate>
@@ -174,8 +213,8 @@
                 </ScrollViewer>
 
                 <ScrollBar x:Name="CardOverlayScrollBar"
-                           Width="10"
-                           Margin="0,0,2,0"
+                           Width="8"
+                           Margin="0,0,-4,0"
                            HorizontalAlignment="Right"
                            VerticalAlignment="Stretch"
                            Orientation="Vertical"
