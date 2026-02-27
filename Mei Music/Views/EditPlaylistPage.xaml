@@ -79,13 +79,40 @@
                             Background="#F0F2F5"
                             CornerRadius="18"
                             ClipToBounds="True">
+                        <!-- Match CreatePlaylistCard rounded masking and hover behavior -->
                         <Grid>
+                            <Grid.OpacityMask>
+                                <VisualBrush>
+                                    <VisualBrush.Visual>
+                                        <Border Background="Black" Width="200" Height="200" CornerRadius="18"/>
+                                    </VisualBrush.Visual>
+                                </VisualBrush>
+                            </Grid.OpacityMask>
+
+                            <!-- Actual Image -->
                             <Image Stretch="UniformToFill"
                                    Source="{Binding IconPreviewPath, Converter={StaticResource PathToImageSourceConverter}}"/>
 
-                            <StackPanel VerticalAlignment="Center"
+                            <!-- Empty state: camera + Add Image text, hidden when an icon is present -->
+                            <StackPanel x:Name="EmptyImagePlaceholder"
+                                        VerticalAlignment="Center"
                                         HorizontalAlignment="Center"
                                         IsHitTestVisible="False">
+                                <StackPanel.Style>
+                                    <Style TargetType="StackPanel">
+                                        <!-- Hidden by default; shown only when IconPreviewPath is null/empty -->
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IconPreviewPath}" Value="{x:Null}">
+                                                <Setter Property="Visibility" Value="Visible" />
+                                            </DataTrigger>
+                                            <DataTrigger Binding="{Binding IconPreviewPath}" Value="">
+                                                <Setter Property="Visibility" Value="Visible" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </StackPanel.Style>
+
                                 <TextBlock Text="📷"
                                            FontSize="34"
                                            Foreground="#A0AAB5"
@@ -98,6 +125,7 @@
                                            Margin="0,8,0,0"/>
                             </StackPanel>
 
+                            <!-- Hover overlay for replacing the existing icon -->
                             <Border Background="#99000000"
                                     IsHitTestVisible="False">
                                 <Border.Style>

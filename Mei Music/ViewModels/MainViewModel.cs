@@ -11,6 +11,18 @@ using Mei_Music.Services;
 namespace Mei_Music.ViewModels
 {
     /// <summary>
+    /// Enumerates the different high-level views that can be shown in the right panel.
+    /// </summary>
+    public enum RightPanelPage
+    {
+        None,
+        AllSongs,
+        LikedSongs,
+        PlaylistSongs,
+        EditPlaylist
+    }
+
+    /// <summary>
     /// Main application view-model.
     /// Coordinates song library state, playback state, and user commands invoked from the UI.
     /// </summary>
@@ -76,9 +88,17 @@ namespace Mei_Music.ViewModels
         [ObservableProperty]
         private string _currentHeaderTitle = "All";
 
-        /// <summary>True when the right panel is showing the edit-playlist page.</summary>
+        /// <summary>
+        /// Current high-level page shown in the right panel (All, Liked, playlist songs, edit playlist, etc.).
+        /// </summary>
         [ObservableProperty]
-        private bool _isEditingPlaylist;
+        private RightPanelPage _currentPage = RightPanelPage.None;
+
+        /// <summary>
+        /// Last non-edit page visited before entering EditPlaylist mode.
+        /// Used to restore the previous view after Save/Cancel.
+        /// </summary>
+        private RightPanelPage _previousPage = RightPanelPage.None;
 
         /// <summary>Editor state for the playlist currently being edited, or null when not editing.</summary>
         [ObservableProperty]
@@ -618,17 +638,56 @@ namespace Mei_Music.ViewModels
         }
 
         /// <summary>
+        /// Switches the right panel to show all songs and clears any active playlist/editor state.
+        /// </summary>
+        public void ShowAllSongs()
+        {
+            ActivePlaylist = null;
+            PlaylistEditor = null;
+            CurrentHeaderTitle = "All";
+            CurrentPage = RightPanelPage.AllSongs;
+        }
+
+        /// <summary>
+        /// Switches the right panel to show liked songs and clears any active playlist/editor state.
+        /// </summary>
+        public void ShowLikedSongs()
+        {
+            ActivePlaylist = null;
+            PlaylistEditor = null;
+            CurrentHeaderTitle = "Liked";
+            CurrentPage = RightPanelPage.LikedSongs;
+        }
+
+        /// <summary>
+        /// Switches the right panel to show the given playlist's songs.
+        /// </summary>
+        public void ShowPlaylist(CreatedPlaylist playlist)
+        {
+            if (playlist == null) return;
+
+            ActivePlaylist = playlist;
+            SyncActivePlaylistSongs();
+            CurrentHeaderTitle = playlist.Title;
+            CurrentPage = RightPanelPage.PlaylistSongs;
+        }
+
+        /// <summary>
         /// Enters edit mode for the given playlist and prepares an editor view-model.
         /// </summary>
         public void BeginEditPlaylist(CreatedPlaylist playlist)
         {
             if (playlist == null) return;
 
+            // Remember which page we were on before entering edit mode.
+            _previousPage = CurrentPage;
+
+            ActivePlaylist = playlist;
             PlaylistEditor = new EditPlaylistViewModel(
                 playlist,
                 onSave: CommitPlaylistEdits,
                 onCancel: CancelEditPlaylist);
-            IsEditingPlaylist = true;
+            CurrentPage = RightPanelPage.EditPlaylist;
         }
 
         private void CommitPlaylistEdits(EditPlaylistViewModel editor)
@@ -686,8 +745,21 @@ namespace Mei_Music.ViewModels
 
         public void CancelEditPlaylist()
         {
-            IsEditingPlaylist = false;
             PlaylistEditor = null;
+
+            // Default to going back to the page we were on before editing.
+            var targetPage = _previousPage;
+
+            // Safety: if previous page is invalid or still EditPlaylist, choose a sensible default.
+            if (targetPage == RightPanelPage.None || targetPage == RightPanelPage.EditPlaylist)
+            {
+                targetPage = ActivePlaylist != null
+                    ? RightPanelPage.PlaylistSongs
+                    : RightPanelPage.AllSongs;
+            }
+
+            CurrentPage = targetPage;
+            _previousPage = RightPanelPage.None;
         }
 
         private static bool AreSameSongById(Song? left, Song? right)

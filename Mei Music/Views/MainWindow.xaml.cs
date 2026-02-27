@@ -142,7 +142,11 @@ namespace Mei_Music
             LoadSongData();
             LoadCreatedPlaylists();
             NormalizeSongAndPlaylistReferences();
-            ApplyAllSongsView();
+
+            // Initialize right-panel navigation state to All songs.
+            viewModel.ShowAllSongs();
+            AllSongsButton.IsChecked = true;
+
             ViewModel.RefreshSongsInUI();
             LoadSongIndex();
 
@@ -167,13 +171,18 @@ namespace Mei_Music
         }
 
         /// <summary>
-        /// Reacts to view-model property changes that affect row-level current-song visuals.
+        /// Reacts to view-model property changes that affect row-level current-song visuals
+        /// and high-level navigation (right-panel page changes).
         /// </summary>
         private void ViewModel_PropertyChanged(object? sender, PropertyChangedEventArgs e)
         {
             if (e.PropertyName == nameof(MainViewModel.CurrentSong))
             {
                 UpdateCurrentSongState();
+            }
+            else if (e.PropertyName == nameof(MainViewModel.CurrentPage))
+            {
+                ApplyCurrentPage();
             }
         }
 
@@ -1350,6 +1359,38 @@ namespace Mei_Music
         }
 
         /// <summary>
+        /// Applies the current right-panel page from the view-model by delegating to the appropriate view-binding helper.
+        /// </summary>
+        private void ApplyCurrentPage()
+        {
+            switch (ViewModel.CurrentPage)
+            {
+                case RightPanelPage.None:
+                    // No view bound yet; let explicit navigation choose the starting page.
+                    break;
+                case RightPanelPage.AllSongs:
+                    ApplyAllSongsView();
+                    break;
+                case RightPanelPage.LikedSongs:
+                    ApplyLikedSongsView();
+                    break;
+                case RightPanelPage.PlaylistSongs:
+                    if (ViewModel.ActivePlaylist != null)
+                    {
+                        ApplyPlaylistView(ViewModel.ActivePlaylist);
+                    }
+                    else
+                    {
+                        ApplyAllSongsView();
+                    }
+                    break;
+                case RightPanelPage.EditPlaylist:
+                    // The EditPlaylistPage visibility is driven by XAML; no additional work here.
+                    break;
+            }
+        }
+
+        /// <summary>
         /// Returns the active song list (Songs, LikedSongs, or playlist songs) used by transport/navigation.
         /// Uses the CompositeCollection container when available so header rows are excluded from indexing.
         /// </summary>
@@ -1503,7 +1544,7 @@ namespace Mei_Music
             if (sender is not RadioButton btn) return;
             if (btn.DataContext is not CreatedPlaylist playlist) return;
 
-            ApplyPlaylistView(playlist);
+            ViewModel.ShowPlaylist(playlist);
         }
 
         /// <summary>
@@ -1511,8 +1552,14 @@ namespace Mei_Music
         /// </summary>
         private void AllSongsButton_Checked(object sender, RoutedEventArgs e)
         {
+            // During InitializeComponent the DataContext may not yet be assigned.
+            if (DataContext is not MainViewModel vm)
+            {
+                return;
+            }
+
             // Keep the right-side list in sync with the selected sidebar scope.
-            ApplyAllSongsView();
+            vm.ShowAllSongs();
         }
 
         /// <summary>
@@ -1520,8 +1567,13 @@ namespace Mei_Music
         /// </summary>
         private void LikedSongsButton_Checked(object sender, RoutedEventArgs e)
         {
+            if (DataContext is not MainViewModel vm)
+            {
+                return;
+            }
+
             // This view is scaffolded now; like/unlike wiring will populate it later.
-            ApplyLikedSongsView();
+            vm.ShowLikedSongs();
         }
 
         /// <summary>

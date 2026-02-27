@@ -5,6 +5,7 @@
         xmlns:converters="clr-namespace:Mei_Music.Converters"
         xmlns:local="clr-namespace:Mei_Music"
         xmlns:models="clr-namespace:Mei_Music.Models"
+        xmlns:vm="clr-namespace:Mei_Music.ViewModels"
         Title="Mei Music" Height="600" Width="900"
         Deactivated="Window_Deactivated"
         WindowStartupLocation="CenterScreen"
@@ -73,8 +74,7 @@
             <!-- Left Panel: library scope selectors and created playlist navigation. -->
             <Border Grid.Row="0" Grid.Column="0"
                     Background="{DynamicResource LeftPanelBackground}"
-                    Margin="0"
-                    IsEnabled="{Binding IsEditingPlaylist, Converter={StaticResource InverseBooleanConverter}}">
+                    Margin="0">
                 <Grid Margin="10,12,10,10">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
@@ -90,7 +90,6 @@
                                  HorizontalAlignment="Stretch"
                                  Margin="0,0,0,6"
                                  Content="All"
-                                 IsChecked="True"
                                  Checked="AllSongsButton_Checked"
                                  ToolTip="Show all songs"
                                  Style="{StaticResource SidebarSelectableCardRadioButtonStyle}">
@@ -341,8 +340,17 @@
                         </Grid.RowDefinitions>
 
                         <!-- Row 0: Toolbar -->
-                        <Grid Grid.Row="0"
-                              Visibility="{Binding IsEditingPlaylist, Converter={StaticResource InverseBoolToVisibilityConverter}}">
+                        <Grid Grid.Row="0">
+                            <Grid.Style>
+                                <Style TargetType="Grid">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding CurrentPage}" Value="{x:Static vm:RightPanelPage.EditPlaylist}">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Grid.Style>
                             <!-- Playlist Label -->
                             <Label x:Name="PlaylistHeaderLabel"
                                    Content="{Binding CurrentHeaderTitle}"
@@ -422,8 +430,17 @@
                         <Grid x:Name="SongPanelScrollScope"
                               Grid.Row="1"
                               Grid.RowSpan="2"
-                              Background="#FFE9ECF1"
-                              Visibility="{Binding IsEditingPlaylist, Converter={StaticResource InverseBoolToVisibilityConverter}}">
+                              Background="#FFE9ECF1">
+                            <Grid.Style>
+                                <Style TargetType="Grid">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding CurrentPage}" Value="{x:Static vm:RightPanelPage.EditPlaylist}">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Grid.Style>
                             <!-- Song ListView -->
                             <ListView x:Name="UploadedSongList"
                                       Background="#FFE9ECF1"
@@ -490,8 +507,17 @@
                         <!-- Edit playlist page (replaces song list while editing) -->
                         <Grid Grid.Row="1"
                               Grid.RowSpan="2"
-                              Background="#FFE9ECF1"
-                              Visibility="{Binding IsEditingPlaylist, Converter={StaticResource BoolToVisibilityConverter}}">
+                              Background="#FFE9ECF1">
+                            <Grid.Style>
+                                <Style TargetType="Grid">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding CurrentPage}" Value="{x:Static vm:RightPanelPage.EditPlaylist}">
+                                            <Setter Property="Visibility" Value="Visible" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Grid.Style>
                             <local:EditPlaylistPage DataContext="{Binding PlaylistEditor}"/>
                         </Grid>
 
