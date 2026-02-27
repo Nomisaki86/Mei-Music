@@ -1,4 +1,5 @@
 using System.Globalization;
+using System;
 using System.Windows.Data;
 using Mei_Music.Models;
 
@@ -36,7 +37,9 @@ namespace Mei_Music.Converters
                     continue;
 
                 songIndex++;
-                if (ReferenceEquals(song, targetSong) || song.Name == targetSong.Name)
+                if (ReferenceEquals(song, targetSong)
+                    || (!string.IsNullOrWhiteSpace(song.Id)
+                        && string.Equals(song.Id, targetSong.Id, StringComparison.Ordinal)))
                     return songIndex.ToString("D2", culture);
             }
 

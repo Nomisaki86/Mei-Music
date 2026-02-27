@@ -31,10 +31,10 @@ Purpose: quick routing guide so agents start in the right files and avoid broad 
 ## Models
 
 - `Mei Music/Models/Song.cs`
-  Song metadata and row-level state.
+  Song metadata and row-level state, including reverse playlist links via `PlaylistIds`.
 
 - `Mei Music/Models/CreatedPlaylist.cs`
-  Playlist metadata; playlist membership is `SongNames`.
+  Playlist metadata; playlist membership is `SongIds` (with legacy `SongNames` migration support).
 
 - `Mei Music/Models/SongColumnLayoutState.cs`
   Shared song row column width/layout state.
@@ -49,6 +49,9 @@ Purpose: quick routing guide so agents start in the right files and avoid broad 
 
 - `Mei Music/Views/PlaylistContextMenuCard.xaml` + `.cs`
   Playlist context menu UI and events.
+
+- `Mei Music/Views/EditPlaylistPage.xaml` + `.cs`
+  Edit playlist info page (title/description/icon), shown in right panel while editing.
 
 - `Mei Music/Views/CreatePlaylistCard.xaml` + `.cs`
   Create playlist card UI, image select/crop, title input, create event payload.
@@ -105,6 +108,9 @@ Use this section first before searching.
 
 - Playlist sidebar behavior (select/create/delete/switch view)
   - Start: `MainWindow.xaml`, `MainWindow.xaml.cs`, `MainViewModel.cs`, `CreatedPlaylist.cs`
+
+- Edit playlist info (title/description/icon + persistence)
+  - Start: `PlaylistContextMenuCard.xaml`, `MainWindow.xaml(.cs)`, `EditPlaylistPage.xaml(.cs)`, `MainViewModel.cs`, `CreatedPlaylist.cs`, `FileService.cs`
 
 - Create playlist flow (title/icon/crop + persistence)
   - Start: `CreatePlaylistCard.xaml`, `CreatePlaylistCard.xaml.cs`, `MainWindow.xaml.cs`, `MainViewModel.cs`

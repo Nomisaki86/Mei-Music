@@ -1,5 +1,6 @@
 using System.Collections;
 using System.Collections.Generic;
+using System;
 using Mei_Music.Models;
 
 namespace Mei_Music.Services
@@ -25,8 +26,7 @@ namespace Mei_Music.Services
         /// <inheritdoc />
         public bool IsCurrentSong(Song? currentSong, Song candidateSong)
         {
-            return currentSong != null
-                && (ReferenceEquals(currentSong, candidateSong) || currentSong.Name == candidateSong.Name);
+            return IsSameSong(currentSong, candidateSong);
         }
 
         /// <inheritdoc />
@@ -52,7 +52,7 @@ namespace Mei_Music.Services
 
             for (int i = 0; i < list.Count; i++)
             {
-                if (list[i] is Song listSong && (ReferenceEquals(listSong, song) || listSong.Name == song.Name))
+                if (list[i] is Song listSong && IsSameSong(listSong, song))
                 {
                     return i;
                 }
@@ -114,6 +114,23 @@ namespace Mei_Music.Services
         {
             _lastSongRowClickedSong = null;
             _lastSongRowClickTimestampMs = 0;
+        }
+
+        private static bool IsSameSong(Song? left, Song? right)
+        {
+            if (left == null || right == null)
+            {
+                return false;
+            }
+
+            if (ReferenceEquals(left, right))
+            {
+                return true;
+            }
+
+            return !string.IsNullOrWhiteSpace(left.Id)
+                && !string.IsNullOrWhiteSpace(right.Id)
+                && string.Equals(left.Id, right.Id, StringComparison.Ordinal);
         }
     }
 }

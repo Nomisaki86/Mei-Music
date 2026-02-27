@@ -12,6 +12,23 @@
     <Border Style="{StaticResource ContextMenuCardContainerBorderStyle}">
 
         <StackPanel>
+            <!-- Edit Playlist option -->
+            <Button x:Name="EditButton"
+                    Click="EditButton_Click"
+                    Style="{StaticResource ContextMenuCardActionButtonStyle}">
+                <StackPanel Style="{StaticResource ContextMenuCardRowLayoutStyle}">
+                    <Rectangle Style="{StaticResource ContextMenuCardGlyphRectangleStyle}">
+                        <Rectangle.OpacityMask>
+                            <ImageBrush ImageSource="/Resources/Images/edit.png"
+                                        Stretch="Uniform"
+                                        RenderOptions.BitmapScalingMode="HighQuality"/>
+                        </Rectangle.OpacityMask>
+                    </Rectangle>
+                    <TextBlock Text="Edit Playlist Info"
+                               Style="{StaticResource ContextMenuCardLabelStyle}"/>
+                </StackPanel>
+            </Button>
+
             <!-- Delete Playlist option -->
             <Button x:Name="DeleteButton"
                     Click="DeleteButton_Click"

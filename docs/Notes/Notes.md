@@ -32,4 +32,5 @@ Dependency Injection (DI)
 # Liked -> All takes long time
 `Problem`: Moving from Liked Songs view to All Songs view is slow because WPF is trying to creating all the songs before displaying them.  
 `Solition`: Introduced ListView, which WBP is smart enought to use it for `UI Virtualization` which calculate your screen space and only render the items within that space. But this introduces a new problem. ListView is designed to work with a single stream of data (1 type of object). If I want the `header(Type A)` and the `songs(Type B)` to be both scrollable I need to use a `CompositeCollection`. 
-    
+
+[ObservableProperty] is used to raise a PropertyChanges on that object. (Song Instance)

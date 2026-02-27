@@ -62,9 +62,9 @@ namespace Mei_Music
         public void LoadPlaylists(IEnumerable<CreatedPlaylist> playlists, Song? currentSong)
         {
             _playlists = playlists.ToList();
-            string? currentSongName = currentSong?.Name;
+            string? currentSongId = currentSong?.Id;
             var rows = _playlists
-                .Select(playlist => new PlaylistRowItem(playlist, PlaylistContainsSong(playlist, currentSongName)))
+                .Select(playlist => new PlaylistRowItem(playlist, PlaylistContainsSong(playlist, currentSongId)))
                 .ToList();
 
             PlaylistItemsControl.ItemsSource = rows;
@@ -73,15 +73,15 @@ namespace Mei_Music
             Dispatcher.BeginInvoke(SyncOverlayScrollBar, DispatcherPriority.Loaded);
         }
 
-        private static bool PlaylistContainsSong(CreatedPlaylist playlist, string? songName)
+        private static bool PlaylistContainsSong(CreatedPlaylist playlist, string? songId)
         {
-            if (string.IsNullOrWhiteSpace(songName) || playlist.SongNames == null)
+            if (string.IsNullOrWhiteSpace(songId) || playlist.SongIds == null)
             {
                 return false;
             }
 
-            return playlist.SongNames.Any(name =>
-                string.Equals(name, songName, StringComparison.OrdinalIgnoreCase));
+            return playlist.SongIds.Any(id =>
+                string.Equals(id, songId, StringComparison.Ordinal));
         }
 
         private void AddToPlaylistCard_Loaded(object sender, RoutedEventArgs e)

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.IO;
 using System.Linq;
@@ -51,6 +52,7 @@ namespace Mei_Music.ViewModels
 
             Songs = new ObservableCollection<Song>();
             LikedSongs = new ObservableCollection<Song>();
+            ActivePlaylistSongs = new ObservableCollection<Song>();
             CreatedPlaylists = new ObservableCollection<CreatedPlaylist>();
 
             _audioPlayer.MediaOpened += OnMediaOpened;
@@ -61,6 +63,27 @@ namespace Mei_Music.ViewModels
         // --- Core Collections ---
         public ObservableCollection<Song> Songs { get; }
         public ObservableCollection<Song> LikedSongs { get; }
+        /// <summary>Currently displayed playlist's songs; kept in sync when active playlist or Songs change. Same pattern as LikedSongs.</summary>
+        public ObservableCollection<Song> ActivePlaylistSongs { get; }
+
+        /// <summary>The playlist currently shown in the main list, or null when showing All/Liked.</summary>
+        public CreatedPlaylist? ActivePlaylist { get; private set; }
+
+        /// <summary>
+        /// Title shown in the right-panel header label (All / Liked / playlist title).
+        /// Kept in sync by view navigation and by playlist edits.
+        /// </summary>
+        [ObservableProperty]
+        private string _currentHeaderTitle = "All";
+
+        /// <summary>True when the right panel is showing the edit-playlist page.</summary>
+        [ObservableProperty]
+        private bool _isEditingPlaylist;
+
+        /// <summary>Editor state for the playlist currently being edited, or null when not editing.</summary>
+        [ObservableProperty]
+        private EditPlaylistViewModel? _playlistEditor;
+
         public ObservableCollection<CreatedPlaylist> CreatedPlaylists { get; }
 
         // --- Playback State ---
@@ -231,36 +254,13 @@ namespace Mei_Music.ViewModels
 
             if (!string.IsNullOrEmpty(newName) && newName != oldName)
             {
-                string newFilePath = Path.Combine(_audioDirectory, newName + ".mp3");
-
-                if (File.Exists(newFilePath))
+                bool duplicateSongName = Songs.Any(existingSong =>
+                    !AreSameSongById(existingSong, song)
+                    && string.Equals(existingSong.Name, newName, StringComparison.OrdinalIgnoreCase));
+                if (duplicateSongName)
                 {
                     _dialogService.ShowMessage($"A file named \"{newName}\" already exists in the playlist. Please choose a different name.", "Duplicate Name");
                     return;
-                }
-
-                // Update model
-                var songToReplace = Songs.FirstOrDefault(s => s.Name == oldName);
-                if (songToReplace != null)
-                {
-                    int index = Songs.IndexOf(songToReplace);
-                    Songs.Remove(songToReplace);
-
-                    var newSongInfo = new Song
-                    {
-                        Index = songToReplace.Index,
-                        Name = newName,
-                        Volume = songToReplace.Volume,
-                        IsLiked = songToReplace.IsLiked,
-                        Duration = songToReplace.Duration
-                    };
-
-                    Songs.Insert(index, newSongInfo);
-                    if (CurrentSong?.Name == oldName)
-                    {
-                        CurrentSong = newSongInfo;
-                    }
-                    SaveSongData();
                 }
 
                 // Rename files
@@ -269,10 +269,22 @@ namespace Mei_Music.ViewModels
                 string oldWav = Path.Combine(_audioDirectory, oldName + ".wav");
                 string newWav = Path.Combine(_audioDirectory, newName + ".wav");
 
+                bool targetPathExists =
+                    (!string.Equals(oldMp3, newMp3, StringComparison.OrdinalIgnoreCase) && File.Exists(newMp3))
+                    || (!string.Equals(oldWav, newWav, StringComparison.OrdinalIgnoreCase) && File.Exists(newWav));
+                if (targetPathExists)
+                {
+                    _dialogService.ShowMessage($"A file named \"{newName}\" already exists in the playlist. Please choose a different name.", "Duplicate Name");
+                    return;
+                }
+
                 try
                 {
                     if (File.Exists(oldMp3)) File.Move(oldMp3, newMp3);
                     if (File.Exists(oldWav)) File.Move(oldWav, newWav);
+
+                    song.Name = newName;
+                    SaveSongData();
                 }
                 catch (Exception ex)
                 {
@@ -291,10 +303,26 @@ namespace Mei_Music.ViewModels
 
             if (_dialogService.ShowDeleteSongConfirmation(song.Name))
             {
-                var songToRemove = Songs.FirstOrDefault(s => s.Name == song.Name);
+                var songToRemove = Songs.FirstOrDefault(existingSong => AreSameSongById(existingSong, song));
                 if (songToRemove != null)
                 {
+                    //Remove from all Playlists
+                    bool playlistsChanged = RemoveSongFromAllPlaylists(songToRemove);
+                    //Remove from All list
                     Songs.Remove(songToRemove);
+                    //Remove from Liked list
+                    LikedSongs.Remove(songToRemove);
+                    if (AreSameSongById(CurrentSong, songToRemove))
+                    {
+                        CurrentSong = null;
+                        IsPlaying = false;
+                    }
+
+                    if (playlistsChanged)
+                    {
+                        SaveCreatedPlaylists();
+                    }
+
                     SaveSongData();
                 }
 
@@ -346,7 +374,7 @@ namespace Mei_Music.ViewModels
             _dialogService.ShowSongVolumeDialog(song, newVolume =>
             {
                 song.Volume = newVolume;
-                if (CurrentSong != null && CurrentSong.Name == song.Name)
+                if (AreSameSongById(CurrentSong, song))
                 {
                     UpdatePlayerVolume();
                 }
@@ -458,13 +486,32 @@ namespace Mei_Music.ViewModels
                 .Where(n => n != null)!
             );
 
+            bool playlistsChangedByMissingFiles = false;
             for (int i = Songs.Count - 1; i >= 0; i--)
             {
-                string? songName = Songs[i]?.Name;
+                Song song = Songs[i];
+                string? songName = song.Name;
                 if (songName != null && !filesInFolder.Contains(songName))
                 {
+                    bool playlistsChanged = RemoveSongFromAllPlaylists(song);
                     Songs.RemoveAt(i);
+                    LikedSongs.Remove(song);
+                    if (AreSameSongById(CurrentSong, song))
+                    {
+                        CurrentSong = null;
+                        IsPlaying = false;
+                    }
+
+                    if (playlistsChanged)
+                    {
+                        playlistsChangedByMissingFiles = true;
+                    }
                 }
+            }
+
+            if (playlistsChangedByMissingFiles)
+            {
+                SaveCreatedPlaylists();
             }
 
             // 4) Add new files and backfill missing duration metadata.
@@ -474,7 +521,8 @@ namespace Mei_Music.ViewModels
                 if (extension == ".mp3" || extension == ".wav")
                 {
                     string fileName = Path.GetFileNameWithoutExtension(filePath);
-                    var existingSong = Songs.FirstOrDefault(s => s.Name == fileName);
+                    var existingSong = Songs.FirstOrDefault(s =>
+                        string.Equals(s.Name, fileName, StringComparison.OrdinalIgnoreCase));
 
                     if (existingSong != null)
                     {
@@ -496,6 +544,7 @@ namespace Mei_Music.ViewModels
             }
 
             SaveSongData();
+            SyncActivePlaylistSongs();
         }
 
         /// <summary>
@@ -516,6 +565,148 @@ namespace Mei_Music.ViewModels
             }
         }
 
+        private bool RemoveSongFromAllPlaylists(Song song)
+        {
+            if (string.IsNullOrWhiteSpace(song.Id))
+            {
+                return false;
+            }
+
+            bool changed = false;
+            foreach (CreatedPlaylist playlist in CreatedPlaylists)
+            {
+                if (playlist.SongIds.RemoveAll(songId => string.Equals(songId, song.Id, StringComparison.Ordinal)) > 0)
+                {
+                    changed = true;
+                }
+            }
+
+            if (song.PlaylistIds.Count > 0)
+            {
+                song.PlaylistIds.Clear();
+                changed = true;
+            }
+
+            return changed;
+        }
+
+        /// <summary>
+        /// Sets the playlist currently shown in the main list and syncs ActivePlaylistSongs from it.
+        /// Pass null when switching to All or Liked.
+        /// </summary>
+        public void SetActivePlaylist(CreatedPlaylist? playlist)
+        {
+            ActivePlaylist = playlist;
+            SyncActivePlaylistSongs();
+        }
+
+        /// <summary>
+        /// Rebuilds ActivePlaylistSongs from ActivePlaylist's SongIds and Songs. Call after Songs or playlist membership changes.
+        /// </summary>
+        public void SyncActivePlaylistSongs()
+        {
+            ActivePlaylistSongs.Clear();
+            if (ActivePlaylist?.SongIds == null) return;
+            foreach (string songId in ActivePlaylist.SongIds)
+            {
+                var song = Songs.FirstOrDefault(s =>
+                    !string.IsNullOrWhiteSpace(s.Id)
+                    && string.Equals(s.Id, songId, StringComparison.Ordinal));
+                if (song != null)
+                    ActivePlaylistSongs.Add(song);
+            }
+        }
+
+        /// <summary>
+        /// Enters edit mode for the given playlist and prepares an editor view-model.
+        /// </summary>
+        public void BeginEditPlaylist(CreatedPlaylist playlist)
+        {
+            if (playlist == null) return;
+
+            PlaylistEditor = new EditPlaylistViewModel(
+                playlist,
+                onSave: CommitPlaylistEdits,
+                onCancel: CancelEditPlaylist);
+            IsEditingPlaylist = true;
+        }
+
+        private void CommitPlaylistEdits(EditPlaylistViewModel editor)
+        {
+            if (editor == null) return;
+            var playlist = editor.Playlist;
+
+            string newTitle = (editor.Title ?? string.Empty).Trim();
+            if (string.IsNullOrWhiteSpace(newTitle))
+            {
+                _dialogService.ShowMessage("Playlist name cannot be empty.");
+                return;
+            }
+
+            playlist.Title = newTitle;
+            playlist.Description = editor.Description ?? string.Empty;
+
+            if (!string.IsNullOrWhiteSpace(editor.SelectedImageFilePath) && File.Exists(editor.SelectedImageFilePath))
+            {
+                Directory.CreateDirectory(_playlistIconsDirectory);
+
+                string ext = Path.GetExtension(editor.SelectedImageFilePath);
+                if (string.IsNullOrWhiteSpace(ext)) ext = ".png";
+                string destPath = Path.Combine(_playlistIconsDirectory, playlist.Id + ext);
+
+                // Remove old icon file if we are replacing it with a new path.
+                if (!string.IsNullOrWhiteSpace(playlist.IconPath)
+                    && File.Exists(playlist.IconPath)
+                    && !string.Equals(playlist.IconPath, destPath, StringComparison.OrdinalIgnoreCase))
+                {
+                    try { File.Delete(playlist.IconPath); } catch { /* non-critical cleanup */ }
+                }
+
+                try
+                {
+                    File.Copy(editor.SelectedImageFilePath, destPath, overwrite: true);
+                    playlist.IconPath = destPath;
+                }
+                catch
+                {
+                    // Leave IconPath unchanged if copy fails.
+                }
+            }
+
+            SaveCreatedPlaylists();
+
+            // Keep header title in sync when user edits the currently active playlist.
+            if (ActivePlaylist != null && string.Equals(ActivePlaylist.Id, playlist.Id, StringComparison.Ordinal))
+            {
+                CurrentHeaderTitle = playlist.Title;
+            }
+
+            CancelEditPlaylist();
+        }
+
+        public void CancelEditPlaylist()
+        {
+            IsEditingPlaylist = false;
+            PlaylistEditor = null;
+        }
+
+        private static bool AreSameSongById(Song? left, Song? right)
+        {
+            if (left == null || right == null)
+            {
+                return false;
+            }
+
+            if (ReferenceEquals(left, right))
+            {
+                return true;
+            }
+
+            return !string.IsNullOrWhiteSpace(left.Id)
+                && !string.IsNullOrWhiteSpace(right.Id)
+                && string.Equals(left.Id, right.Id, StringComparison.Ordinal);
+        }
+
         /// <summary>
         /// Adds a new playlist to the collection and persists updated playlist data.
         /// </summary>
@@ -523,6 +714,13 @@ namespace Mei_Music.ViewModels
         public void CreatePlaylist(CreatedPlaylist playlist)
         {
             if (playlist == null) return;
+            if (string.IsNullOrWhiteSpace(playlist.Id))
+            {
+                playlist.Id = Guid.NewGuid().ToString("N");
+            }
+
+            playlist.SongIds ??= new List<string>();
+            playlist.LegacySongNames = null;
             CreatedPlaylists.Add(playlist);
             SaveCreatedPlaylists();
         }
@@ -535,6 +733,18 @@ namespace Mei_Music.ViewModels
         {
             if (playlist == null) return;
 
+            bool songsChanged = false;
+            if (!string.IsNullOrWhiteSpace(playlist.Id))
+            {
+                foreach (Song song in Songs)
+                {
+                    if (song.PlaylistIds.RemoveAll(id => string.Equals(id, playlist.Id, StringComparison.Ordinal)) > 0)
+                    {
+                        songsChanged = true;
+                    }
+                }
+            }
+
             if (!string.IsNullOrEmpty(playlist.IconPath) && File.Exists(playlist.IconPath))
             {
                 try { File.Delete(playlist.IconPath); } catch { /* Non-critical */ }
@@ -542,6 +752,14 @@ namespace Mei_Music.ViewModels
 
             CreatedPlaylists.Remove(playlist);
             SaveCreatedPlaylists();
+            if (ReferenceEquals(playlist, ActivePlaylist))
+            {
+                SetActivePlaylist(null);
+            }
+            if (songsChanged)
+            {
+                SaveSongData();
+            }
         }
 
         /// <summary>

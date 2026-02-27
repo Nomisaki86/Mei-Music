@@ -141,6 +141,7 @@ namespace Mei_Music
 
             LoadSongData();
             LoadCreatedPlaylists();
+            NormalizeSongAndPlaylistReferences();
             ApplyAllSongsView();
             ViewModel.RefreshSongsInUI();
             LoadSongIndex();
@@ -187,7 +188,7 @@ namespace Mei_Music
 
         /// <summary>
         /// Synchronizes each song row's IsCurrent flag against <see cref="MainViewModel.CurrentSong"/>.
-        /// Uses reference first and name fallback for deserialized/recreated objects.
+        /// Uses reference first and stable song-ID matching for deserialized/recreated objects.
         /// </summary>
         private void UpdateCurrentSongState()
         {
@@ -361,6 +362,150 @@ namespace Mei_Music
             fileService.SavePlaylists(PlaylistsFilePath, ViewModel.CreatedPlaylists.ToList());
         }
 
+        /// <summary>
+        /// Normalizes song/playlist identity data and migrates legacy SongNames membership to ID-based links.
+        /// Ensures playlists reference songs by <see cref="Song.Id"/> and songs track reverse membership via PlaylistIds.
+        /// </summary>
+        private void NormalizeSongAndPlaylistReferences()
+        {
+            bool songsChanged = false;
+            bool playlistsChanged = false;
+
+            var songsById = new Dictionary<string, Song>(StringComparer.Ordinal);
+            var songsByName = new Dictionary<string, Song>(StringComparer.OrdinalIgnoreCase);
+
+            foreach (Song song in ViewModel.Songs)
+            {
+                if (string.IsNullOrWhiteSpace(song.Id))
+                {
+                    song.Id = Guid.NewGuid().ToString("N");
+                    songsChanged = true;
+                }
+
+                while (songsById.ContainsKey(song.Id))
+                {
+                    song.Id = Guid.NewGuid().ToString("N");
+                    songsChanged = true;
+                }
+
+                var normalizedPlaylistIds = (song.PlaylistIds ?? new List<string>())
+                    .Where(id => !string.IsNullOrWhiteSpace(id))
+                    .Distinct(StringComparer.Ordinal)
+                    .ToList();
+
+                if (song.PlaylistIds == null || !song.PlaylistIds.SequenceEqual(normalizedPlaylistIds))
+                {
+                    song.PlaylistIds = normalizedPlaylistIds;
+                    songsChanged = true;
+                }
+
+                songsById[song.Id] = song;
+
+                if (!string.IsNullOrWhiteSpace(song.Name) && !songsByName.ContainsKey(song.Name))
+                {
+                    songsByName[song.Name] = song;
+                }
+            }
+
+            var seenPlaylistIds = new HashSet<string>(StringComparer.Ordinal);
+            foreach (CreatedPlaylist playlist in ViewModel.CreatedPlaylists)
+            {
+                if (string.IsNullOrWhiteSpace(playlist.Id))
+                {
+                    playlist.Id = Guid.NewGuid().ToString("N");
+                    playlistsChanged = true;
+                }
+
+                while (!seenPlaylistIds.Add(playlist.Id))
+                {
+                    playlist.Id = Guid.NewGuid().ToString("N");
+                    playlistsChanged = true;
+                }
+
+                var normalizedSongIds = (playlist.SongIds ?? new List<string>())
+                    .Where(id => !string.IsNullOrWhiteSpace(id))
+                    .Distinct(StringComparer.Ordinal)
+                    .ToList();
+
+                if (normalizedSongIds.Count == 0 && playlist.LegacySongNames != null)
+                {
+                    foreach (string legacySongName in playlist.LegacySongNames)
+                    {
+                        if (songsByName.TryGetValue(legacySongName, out Song? mappedSong)
+                            && !normalizedSongIds.Contains(mappedSong.Id, StringComparer.Ordinal))
+                        {
+                            normalizedSongIds.Add(mappedSong.Id);
+                        }
+                    }
+                }
+
+                int beforeFilterCount = normalizedSongIds.Count;
+                normalizedSongIds = normalizedSongIds
+                    .Where(songId => songsById.ContainsKey(songId))
+                    .ToList();
+
+                if (beforeFilterCount != normalizedSongIds.Count)
+                {
+                    playlistsChanged = true;
+                }
+
+                if (playlist.SongIds == null || !playlist.SongIds.SequenceEqual(normalizedSongIds))
+                {
+                    playlist.SongIds = normalizedSongIds;
+                    playlistsChanged = true;
+                }
+
+                if (playlist.LegacySongNames != null)
+                {
+                    playlist.LegacySongNames = null;
+                    playlistsChanged = true;
+                }
+            }
+
+            var playlistMembershipBySongId = new Dictionary<string, List<string>>(StringComparer.Ordinal);
+            foreach (CreatedPlaylist playlist in ViewModel.CreatedPlaylists)
+            {
+                foreach (string songId in playlist.SongIds)
+                {
+                    if (!playlistMembershipBySongId.TryGetValue(songId, out List<string>? playlistIds))
+                    {
+                        playlistIds = new List<string>();
+                        playlistMembershipBySongId[songId] = playlistIds;
+                    }
+
+                    if (!playlistIds.Contains(playlist.Id, StringComparer.Ordinal))
+                    {
+                        playlistIds.Add(playlist.Id);
+                    }
+                }
+            }
+
+            foreach (Song song in ViewModel.Songs)
+            {
+                var desiredPlaylistIds = playlistMembershipBySongId.TryGetValue(song.Id, out List<string>? playlistIds)
+                    ? playlistIds
+                    : new List<string>();
+
+                if (song.PlaylistIds == null || !song.PlaylistIds.SequenceEqual(desiredPlaylistIds))
+                {
+                    song.PlaylistIds = desiredPlaylistIds;
+                    songsChanged = true;
+                }
+            }
+
+            if (playlistsChanged)
+            {
+                ViewModel.SaveCreatedPlaylists();
+            }
+
+            if (songsChanged)
+            {
+                ViewModel.SaveSongData();
+            }
+
+            ViewModel.SyncActivePlaylistSongs();
+        }
+
         /// <summary>Resets and shows the create-playlist overlay card.</summary>
         private void OpenCreatePlaylistOverlay()
         {
@@ -456,6 +601,10 @@ namespace Mei_Music
         private Song? _pendingAddToPlaylistSong;
         /// <summary>Auto-hide timer for non-blocking inline toast notifications.</summary>
         private readonly DispatcherTimer _inlineToastHideTimer = new DispatcherTimer();
+        /// <summary>
+        /// Monotonic token used to ignore stale deferred show callbacks when toasts are triggered in quick succession.
+        /// </summary>
+        private int _inlineToastShowRequestVersion;
         private static readonly SolidColorBrush InlineToastSuccessBrush = CreateInlineToastBrush(0x3F, 0xC7, 0x6A);
         private static readonly SolidColorBrush InlineToastErrorBrush = CreateInlineToastBrush(0xF0, 0x4E, 0x4E);
 
@@ -586,25 +735,40 @@ namespace Mei_Music
         /// </summary>
         private bool TryAddSongToPlaylist(CreatedPlaylist playlist, Song song)
         {
-            if (string.IsNullOrWhiteSpace(song.Name))
+            if (string.IsNullOrWhiteSpace(song.Id) || string.IsNullOrWhiteSpace(playlist.Id))
             {
                 return false;
             }
 
-            playlist.SongNames ??= new List<string>();
-            bool alreadyInPlaylist = playlist.SongNames.Any(name =>
-                string.Equals(name, song.Name, StringComparison.OrdinalIgnoreCase));
+            playlist.SongIds ??= new List<string>();
+            song.PlaylistIds ??= new List<string>();
+
+            bool alreadyInPlaylist = playlist.SongIds.Any(songId =>
+                string.Equals(songId, song.Id, StringComparison.Ordinal));
             if (alreadyInPlaylist)
             {
+                if (!song.PlaylistIds.Contains(playlist.Id, StringComparer.Ordinal))
+                {
+                    song.PlaylistIds.Add(playlist.Id);
+                    ViewModel.SaveSongData();
+                }
+
                 return false;
             }
 
-            playlist.SongNames.Add(song.Name);
-            ViewModel.SaveCreatedPlaylists();
-
-            if (_activePlaylist != null && string.Equals(_activePlaylist.Id, playlist.Id, StringComparison.Ordinal))
+            playlist.SongIds.Add(song.Id);
+            playlist.LegacySongNames = null;
+            if (!song.PlaylistIds.Contains(playlist.Id, StringComparer.Ordinal))
             {
-                ApplyPlaylistView(playlist);
+                song.PlaylistIds.Add(playlist.Id);
+            }
+
+            ViewModel.SaveCreatedPlaylists();
+            ViewModel.SaveSongData();
+
+            if (ViewModel.ActivePlaylist != null && string.Equals(ViewModel.ActivePlaylist.Id, playlist.Id, StringComparison.Ordinal))
+            {
+                ViewModel.SyncActivePlaylistSongs();
             }
 
             return true;
@@ -642,14 +806,32 @@ namespace Mei_Music
         {
             if (_contextMenuTargetPlaylist == null) return;
             var playlist = _contextMenuTargetPlaylist;
+            bool wasViewingThisPlaylist = ReferenceEquals(_activePlaylist, playlist);
             ClosePlaylistContextMenu();
 
             ViewModel.DeletePlaylist(playlist);
+
+            if (wasViewingThisPlaylist)
+            {
+                ApplyAllSongsView();
+            }
 
             if (ViewModel.CreatedPlaylists.Count == 0 && LikedSongsButton != null)
             {
                 LikedSongsButton.IsChecked = true;
             }
+        }
+
+        /// <summary>
+        /// Opens the edit-playlist page for the playlist selected in the context menu.
+        /// </summary>
+        private void ContextMenuEditPlaylist_Click(object? sender, EventArgs e)
+        {
+            if (_contextMenuTargetPlaylist == null) return;
+            var playlist = _contextMenuTargetPlaylist;
+            ClosePlaylistContextMenu();
+
+            ViewModel.BeginEditPlaylist(playlist);
         }
 
         /// <summary>
@@ -926,15 +1108,30 @@ namespace Mei_Music
                 return;
             }
 
+            int showRequestVersion = ++_inlineToastShowRequestVersion;
             _inlineToastHideTimer.Stop();
             InlineToastText.Text = message;
             InlineToastStatusDot.Fill = isSuccess ? InlineToastSuccessBrush : InlineToastErrorBrush;
             InlineToastHost.CornerRadius = new CornerRadius(Math.Max(0, AppUiSettings.InlineToastCornerRadius));
-            PositionInlineToast();
             _inlineToastHideTimer.Interval = TimeSpan.FromSeconds(Math.Max(0.1, AppUiSettings.InlineToastDurationSeconds));
+            InlineToastHost.Opacity = 0;
             InlineToastOverlay.Visibility = Visibility.Visible;
-            InlineToastHost.Opacity = 1;
-            _inlineToastHideTimer.Start();
+            Dispatcher.BeginInvoke(DispatcherPriority.Loaded, new Action(() =>
+            {
+                if (showRequestVersion != _inlineToastShowRequestVersion)
+                {
+                    return;
+                }
+
+                if (InlineToastOverlay?.Visibility != Visibility.Visible || InlineToastHost == null)
+                {
+                    return;
+                }
+
+                PositionInlineToast();
+                InlineToastHost.Opacity = 1;
+                _inlineToastHideTimer.Start();
+            }));
         }
 
         private void HideInlineToast()
@@ -1107,8 +1304,8 @@ namespace Mei_Music
             SaveCurrentViewScrollOffset();
 
             _activePlaylist = null;
-            if (PlaylistHeaderLabel != null)
-                PlaylistHeaderLabel.Content = "All";
+            ViewModel.SetActivePlaylist(null);
+            ViewModel.CurrentHeaderTitle = "All";
 
             bool switchedToSongs = SongDataContainer == null || !ReferenceEquals(SongDataContainer.Collection, ViewModel.Songs);
             _suppressSelectionChanged = true;
@@ -1208,8 +1405,8 @@ namespace Mei_Music
             SaveCurrentViewScrollOffset();
 
             _activePlaylist = null;
-            if (PlaylistHeaderLabel != null)
-                PlaylistHeaderLabel.Content = "Liked";
+            ViewModel.SetActivePlaylist(null);
+            ViewModel.CurrentHeaderTitle = "Liked";
 
             bool switchedToLiked = SongDataContainer == null || !ReferenceEquals(SongDataContainer.Collection, ViewModel.LikedSongs);
             _suppressSelectionChanged = true;
@@ -1277,29 +1474,20 @@ namespace Mei_Music
             SaveCurrentViewScrollOffset();
 
             _activePlaylist = playlist;
-            if (PlaylistHeaderLabel != null)
-                PlaylistHeaderLabel.Content = playlist.Title;
+            ViewModel.SetActivePlaylist(playlist);
+            ViewModel.CurrentHeaderTitle = playlist.Title;
 
             // Uncheck All / Liked radio buttons
             AllSongsButton.IsChecked = false;
             LikedSongsButton.IsChecked = false;
 
-            // Build a filtered collection of songs that belong to this playlist
-            var playlistSongs = new ObservableCollection<Song>();
-            foreach (var name in playlist.SongNames)
-            {
-                var song = ViewModel.Songs.FirstOrDefault(s => s.Name == name);
-                if (song != null)
-                    playlistSongs.Add(song);
-            }
-
             if (SongDataContainer != null)
             {
-                SongDataContainer.Collection = playlistSongs;
+                SongDataContainer.Collection = ViewModel.ActivePlaylistSongs;
             }
             else
             {
-                UploadedSongList.ItemsSource = playlistSongs;
+                UploadedSongList.ItemsSource = ViewModel.ActivePlaylistSongs;
             }
 
             _suppressSelectionChanged = true;

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using CommunityToolkit.Mvvm.ComponentModel;
+using Newtonsoft.Json;
 
 namespace Mei_Music.Models
 {
@@ -23,6 +24,13 @@ namespace Mei_Music.Models
         private string _title = string.Empty;
 
         /// <summary>
+        /// Optional playlist description shown in the edit/info page.
+        /// Persisted to playlists.json.
+        /// </summary>
+        [ObservableProperty]
+        private string _description = string.Empty;
+
+        /// <summary>
         /// Full filesystem path to the playlist icon image, or null when no icon is set.
         /// </summary>
         [ObservableProperty]
@@ -36,9 +44,16 @@ namespace Mei_Music.Models
         private bool _isPrivate;
 
         /// <summary>
-        /// Song identifiers (song names) that belong to this playlist in display order.
+        /// Song identifiers that belong to this playlist in display order.
         /// </summary>
         [ObservableProperty]
-        private List<string> _songNames = new();
+        private List<string> _songIds = new();
+
+        /// <summary>
+        /// Legacy song-name membership field loaded from older playlist files.
+        /// Used only for migration to <see cref="SongIds"/> and omitted from new saves when null.
+        /// </summary>
+        [JsonProperty("SongNames", NullValueHandling = NullValueHandling.Ignore)]
+        public List<string>? LegacySongNames { get; set; }
     }
 }

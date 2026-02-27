@@ -1,7 +1,9 @@
 using Mei_Music.Models;
 using Newtonsoft.Json;
+using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 
 namespace Mei_Music.Services
 {
@@ -45,10 +47,19 @@ namespace Mei_Music.Services
             var normalizedSongs = new List<Song>();
             foreach (var loadedSong in loadedSongs)
             {
+                var normalizedPlaylistIds = (loadedSong.PlaylistIds ?? new List<string>())
+                    .Where(id => !string.IsNullOrWhiteSpace(id))
+                    .Distinct(StringComparer.Ordinal)
+                    .ToList();
+
                 normalizedSongs.Add(new Song
                 {
+                    Id = string.IsNullOrWhiteSpace(loadedSong.Id)
+                        ? Guid.NewGuid().ToString("N")
+                        : loadedSong.Id,
                     Index = loadedSong.Index,
                     Name = loadedSong.Name,
+                    PlaylistIds = normalizedPlaylistIds,
                     IsLiked = loadedSong.IsLiked,
                     Duration = loadedSong.Duration ?? string.Empty,
                     // Keep persisted volume in a safe range; default to 50 when invalid.
@@ -87,7 +98,34 @@ namespace Mei_Music.Services
 
             string json = File.ReadAllText(playlistsFilePath);
             var loaded = JsonConvert.DeserializeObject<List<CreatedPlaylist>>(json) ?? new List<CreatedPlaylist>();
-            return loaded;
+            var normalizedPlaylists = new List<CreatedPlaylist>();
+            foreach (var playlist in loaded)
+            {
+                var normalizedSongIds = (playlist.SongIds ?? new List<string>())
+                    .Where(id => !string.IsNullOrWhiteSpace(id))
+                    .Distinct(StringComparer.Ordinal)
+                    .ToList();
+
+                var normalizedLegacySongNames = playlist.LegacySongNames?
+                    .Where(name => !string.IsNullOrWhiteSpace(name))
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .ToList();
+
+                normalizedPlaylists.Add(new CreatedPlaylist
+                {
+                    Id = string.IsNullOrWhiteSpace(playlist.Id)
+                        ? Guid.NewGuid().ToString("N")
+                        : playlist.Id,
+                    Title = playlist.Title ?? string.Empty,
+                    Description = playlist.Description ?? string.Empty,
+                    IconPath = playlist.IconPath,
+                    IsPrivate = playlist.IsPrivate,
+                    SongIds = normalizedSongIds,
+                    LegacySongNames = normalizedLegacySongNames
+                });
+            }
+
+            return normalizedPlaylists;
         }
     }
 }

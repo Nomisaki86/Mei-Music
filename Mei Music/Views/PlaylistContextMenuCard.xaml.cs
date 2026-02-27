@@ -10,6 +10,8 @@ namespace Mei_Music
     /// </summary>
     public partial class PlaylistContextMenuCard : UserControl
     {
+        /// <summary>Raised when the user clicks the Edit option.</summary>
+        public event EventHandler? EditRequested;
         /// <summary>Raised when the user clicks the Delete option.</summary>
         public event EventHandler? DeleteRequested;
 
@@ -27,6 +29,14 @@ namespace Mei_Music
         private void DeleteButton_Click(object sender, RoutedEventArgs e)
         {
             DeleteRequested?.Invoke(this, EventArgs.Empty);
+        }
+
+        /// <summary>
+        /// Raises edit request event for the currently targeted playlist.
+        /// </summary>
+        private void EditButton_Click(object sender, RoutedEventArgs e)
+        {
+            EditRequested?.Invoke(this, EventArgs.Empty);
         }
     }
 }

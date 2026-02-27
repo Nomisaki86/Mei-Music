@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
@@ -102,8 +102,7 @@ namespace Mei_Music.Services
             switch (duplicateChoice)
             {
                 case DuplicateImportChoice.Replace:
-                    RemoveSongByName(songs, fileNameWithoutExtension);
-                    AddSongToList(songs, fileNameWithoutExtension, filePath);
+                    existingSong.Duration = GetMediaDuration(filePath);
                     return new ImportSongOutcome(ImportSongOutcomeKind.Replaced);
                 case DuplicateImportChoice.Rename:
                     return new ImportSongOutcome(ImportSongOutcomeKind.RenameRequested, existingSong);
@@ -147,15 +146,6 @@ namespace Mei_Music.Services
             };
 
             songs.Add(song);
-        }
-
-        private static void RemoveSongByName(IList<Song> songs, string name)
-        {
-            Song? songToRemove = songs.FirstOrDefault(song => song.Name == name);
-            if (songToRemove != null)
-            {
-                songs.Remove(songToRemove);
-            }
         }
 
         private static string GetMediaDuration(string filePath)

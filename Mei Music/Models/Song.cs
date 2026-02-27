@@ -1,5 +1,7 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using Newtonsoft.Json;
+using System;
+using System.Collections.Generic;
 
 namespace Mei_Music.Models
 {
@@ -10,6 +12,11 @@ namespace Mei_Music.Models
     public partial class Song : ObservableObject
     {
         /// <summary>
+        /// Stable unique identifier used for backend references across playlists and playback.
+        /// </summary>
+        public string Id { get; set; } = Guid.NewGuid().ToString("N");
+
+        /// <summary>
         /// Display index string shown in list views (for example: "01", "02").
         /// Recomputed whenever the song list ordering changes.
         /// </summary>
@@ -18,7 +25,14 @@ namespace Mei_Music.Models
         /// <summary>
         /// Display name and logical identifier of the song (matches file name without extension).
         /// </summary>
-        public string? Name { get; set; }
+        [ObservableProperty]
+        private string? _name;
+
+        /// <summary>
+        /// Playlist identifiers that currently contain this song.
+        /// Maintained as reverse links to simplify membership queries and cleanup.
+        /// </summary>
+        public List<string> PlaylistIds { get; set; } = new();
 
         /// <summary>
         /// Human-readable duration string (e.g. "03:45").

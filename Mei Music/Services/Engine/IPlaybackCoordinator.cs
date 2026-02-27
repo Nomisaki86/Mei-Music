@@ -21,7 +21,7 @@ namespace Mei_Music.Services
         void SetPlaybackList(IList? playbackList);
 
         /// <summary>
-        /// Returns true when the candidate matches the current song by reference or by name.
+        /// Returns true when the candidate matches the current song by reference or stable song ID.
         /// </summary>
         bool IsCurrentSong(Song? currentSong, Song candidateSong);
 
@@ -31,7 +31,7 @@ namespace Mei_Music.Services
         void SyncCurrentSongFlags(IEnumerable<Song> songs, Song? currentSong);
 
         /// <summary>
-        /// Finds a song index in a non-generic list by reference/name, or -1 when not present.
+        /// Finds a song index in a non-generic list by reference/ID, or -1 when not present.
         /// </summary>
         int IndexOfSongInList(IList list, Song? song);
 

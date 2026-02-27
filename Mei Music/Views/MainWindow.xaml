@@ -23,6 +23,9 @@
         <!-- Value converters used by list row templates and playlist icon rendering. -->
         <converters:DisplayIndexConverter x:Key="DisplayIndexConverter"/>
         <converters:PathToImageSourceConverter x:Key="PathToImageSourceConverter"/>
+        <converters:BoolToVisibilityConverter x:Key="BoolToVisibilityConverter"/>
+        <converters:InverseBoolToVisibilityConverter x:Key="InverseBoolToVisibilityConverter"/>
+        <converters:InverseBooleanConverter x:Key="InverseBooleanConverter"/>
     </Window.Resources>
 
     <WindowChrome.WindowChrome>
@@ -68,7 +71,10 @@
             </Grid.ColumnDefinitions>
 
             <!-- Left Panel: library scope selectors and created playlist navigation. -->
-            <Border Grid.Row="0" Grid.Column="0" Background="{DynamicResource LeftPanelBackground}" Margin="0">
+            <Border Grid.Row="0" Grid.Column="0"
+                    Background="{DynamicResource LeftPanelBackground}"
+                    Margin="0"
+                    IsEnabled="{Binding IsEditingPlaylist, Converter={StaticResource InverseBooleanConverter}}">
                 <Grid Margin="10,12,10,10">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
@@ -335,9 +341,15 @@
                         </Grid.RowDefinitions>
 
                         <!-- Row 0: Toolbar -->
-                        <Grid Grid.Row="0">
+                        <Grid Grid.Row="0"
+                              Visibility="{Binding IsEditingPlaylist, Converter={StaticResource InverseBoolToVisibilityConverter}}">
                             <!-- Playlist Label -->
-                            <Label x:Name="PlaylistHeaderLabel" Content="All" FontSize="15" FontWeight="SemiBold" HorizontalAlignment="Left" Margin="4,0,0,0"/>
+                            <Label x:Name="PlaylistHeaderLabel"
+                                   Content="{Binding CurrentHeaderTitle}"
+                                   FontSize="15"
+                                   FontWeight="SemiBold"
+                                   HorizontalAlignment="Left"
+                                   Margin="4,0,0,0"/>
 
                             <!-- Upload Button-->
                             <Button x:Name="PlusButton"
@@ -410,7 +422,8 @@
                         <Grid x:Name="SongPanelScrollScope"
                               Grid.Row="1"
                               Grid.RowSpan="2"
-                              Background="#FFE9ECF1">
+                              Background="#FFE9ECF1"
+                              Visibility="{Binding IsEditingPlaylist, Converter={StaticResource InverseBoolToVisibilityConverter}}">
                             <!-- Song ListView -->
                             <ListView x:Name="UploadedSongList"
                                       Background="#FFE9ECF1"
@@ -472,6 +485,14 @@
                                        Panel.ZIndex="8"
                                        ValueChanged="SongOverlayScrollBar_ValueChanged"
                                        Style="{StaticResource AutoHideHostBoundScrollBar}"/>
+                        </Grid>
+
+                        <!-- Edit playlist page (replaces song list while editing) -->
+                        <Grid Grid.Row="1"
+                              Grid.RowSpan="2"
+                              Background="#FFE9ECF1"
+                              Visibility="{Binding IsEditingPlaylist, Converter={StaticResource BoolToVisibilityConverter}}">
+                            <local:EditPlaylistPage DataContext="{Binding PlaylistEditor}"/>
                         </Grid>
 
 
@@ -702,6 +723,7 @@
             <!-- Extracted UserControl; positioned via Margin set in code-behind -->
             <local:PlaylistContextMenuCard x:Name="PlaylistContextMenuCard"
                                            HorizontalAlignment="Left" VerticalAlignment="Top"
+                                           EditRequested="ContextMenuEditPlaylist_Click"
                                            DeleteRequested="ContextMenuDeletePlaylist_Click"/>
         </Grid>
 
