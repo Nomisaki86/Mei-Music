@@ -83,7 +83,7 @@
             <!-- Visual separator between regular actions and destructive action. -->
             <Border Style="{StaticResource ContextMenuCardDividerStyle}"/>
 
-            <!-- Delete Song -->
+            <!-- Delete / Remove action (label is bound to view-specific text) -->
             <Button x:Name="DeleteSongButton" Click="DeleteSongButton_Click"
                     Style="{StaticResource ContextMenuCardActionButtonStyle}">
                 <StackPanel Style="{StaticResource ContextMenuCardRowLayoutStyle}">
@@ -94,7 +94,7 @@
                                         RenderOptions.BitmapScalingMode="HighQuality"/>
                         </Rectangle.OpacityMask>
                     </Rectangle>
-                    <TextBlock Text="Delete Song"
+                    <TextBlock Text="{Binding DeleteActionLabel, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                Style="{StaticResource ContextMenuCardLabelStyle}"/>
                 </StackPanel>
             </Button>

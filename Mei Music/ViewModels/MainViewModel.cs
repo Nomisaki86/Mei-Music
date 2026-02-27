@@ -23,6 +23,18 @@ namespace Mei_Music.ViewModels
     }
 
     /// <summary>
+    /// Describes what the destructive action in the song context menu should do for the current view.
+    /// This is used as a single source of truth for both the button label and its behavior.
+    /// </summary>
+    public enum SongContextDeleteMode
+    {
+        None,
+        DeleteFromLibrary,
+        RemoveFromLiked,
+        RemoveFromPlaylist
+    }
+
+    /// <summary>
     /// Main application view-model.
     /// Coordinates song library state, playback state, and user commands invoked from the UI.
     /// </summary>
@@ -93,6 +105,57 @@ namespace Mei_Music.ViewModels
         /// </summary>
         [ObservableProperty]
         private RightPanelPage _currentPage = RightPanelPage.None;
+
+        /// <summary>
+        /// Effective delete/remove mode for the song context menu based on the current page.
+        /// </summary>
+        public SongContextDeleteMode CurrentSongDeleteMode
+        {
+            get
+            {
+                switch (CurrentPage)
+                {
+                    case RightPanelPage.AllSongs:
+                        return SongContextDeleteMode.DeleteFromLibrary;
+                    case RightPanelPage.LikedSongs:
+                        return SongContextDeleteMode.RemoveFromLiked;
+                    case RightPanelPage.PlaylistSongs:
+                        return SongContextDeleteMode.RemoveFromPlaylist;
+                    default:
+                        return SongContextDeleteMode.None;
+                }
+            }
+        }
+
+        /// <summary>
+        /// Human-readable label for the destructive song action, bound by the song context menu.
+        /// </summary>
+        public string CurrentSongDeleteLabel
+        {
+            get
+            {
+                switch (CurrentSongDeleteMode)
+                {
+                    case SongContextDeleteMode.DeleteFromLibrary:
+                        return "Delete Song";
+                    case SongContextDeleteMode.RemoveFromLiked:
+                        return "Remove from Liked";
+                    case SongContextDeleteMode.RemoveFromPlaylist:
+                        return "Remove from Playlist";
+                    default:
+                        return "Delete Song";
+                }
+            }
+        }
+
+        /// <summary>
+        /// Keeps dependent delete-mode properties in sync when the current page changes.
+        /// </summary>
+        partial void OnCurrentPageChanged(RightPanelPage oldValue, RightPanelPage newValue)
+        {
+            OnPropertyChanged(nameof(CurrentSongDeleteMode));
+            OnPropertyChanged(nameof(CurrentSongDeleteLabel));
+        }
 
         /// <summary>
         /// Last non-edit page visited before entering EditPlaylist mode.
@@ -585,6 +648,47 @@ namespace Mei_Music.ViewModels
             }
         }
 
+        /// <summary>
+        /// Removes the specified song from the currently active playlist view without deleting it from the library.
+        /// No-op when not viewing a playlist or when identifiers are missing.
+        /// </summary>
+        [RelayCommand]
+        public void RemoveSongFromActivePlaylist(Song song)
+        {
+            if (song == null || ActivePlaylist == null)
+            {
+                return;
+            }
+
+            if (string.IsNullOrWhiteSpace(song.Id) || string.IsNullOrWhiteSpace(ActivePlaylist.Id))
+            {
+                return;
+            }
+
+            if (ActivePlaylist.SongIds == null)
+            {
+                return;
+            }
+
+            bool removedFromPlaylist = ActivePlaylist.SongIds.RemoveAll(songId =>
+                string.Equals(songId, song.Id, StringComparison.Ordinal)) > 0;
+
+            if (!removedFromPlaylist)
+            {
+                return;
+            }
+
+            if (song.PlaylistIds != null)
+            {
+                song.PlaylistIds.RemoveAll(playlistId =>
+                    string.Equals(playlistId, ActivePlaylist.Id, StringComparison.Ordinal));
+            }
+
+            SyncActivePlaylistSongs();
+            SaveCreatedPlaylists();
+            SaveSongData();
+        }
+
         private bool RemoveSongFromAllPlaylists(Song song)
         {
             if (string.IsNullOrWhiteSpace(song.Id))
@@ -724,6 +828,9 @@ namespace Mei_Music.ViewModels
                 try
                 {
                     File.Copy(editor.SelectedImageFilePath, destPath, overwrite: true);
+
+                    // Force WPF bindings to refresh the image even when the path string is unchanged.
+                    playlist.IconPath = null;
                     playlist.IconPath = destPath;
                 }
                 catch

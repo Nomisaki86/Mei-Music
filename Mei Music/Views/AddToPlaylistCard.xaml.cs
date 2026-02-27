@@ -34,10 +34,29 @@ namespace Mei_Music
             {
                 Playlist = playlist;
                 ContainsCurrentSong = containsCurrentSong;
+                SongCount = GetSongCount(playlist);
             }
 
             public CreatedPlaylist Playlist { get; }
             public bool ContainsCurrentSong { get; }
+            public int SongCount { get; }
+
+            private static int GetSongCount(CreatedPlaylist playlist)
+            {
+                if (playlist == null)
+                {
+                    return 0;
+                }
+
+                // Prefer the current identifier-based membership list.
+                if (playlist.SongIds != null && playlist.SongIds.Count > 0)
+                {
+                    return playlist.SongIds.Count;
+                }
+
+                // Fallback for legacy playlist files that still populate SongNames.
+                return playlist.LegacySongNames?.Count ?? 0;
+            }
         }
 
         public event EventHandler? CloseRequested;

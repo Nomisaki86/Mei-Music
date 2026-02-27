@@ -735,6 +735,7 @@
             <local:SongContextMenuCard x:Name="SongContextMenu"
                                        HorizontalAlignment="Left"
                                        VerticalAlignment="Top"
+                                       DeleteActionLabel="{Binding CurrentSongDeleteLabel}"
                                        AddRequested="SongContextMenu_AddRequested"
                                        VolumeRequested="SongContextMenu_VolumeRequested"
                                        RenameRequested="SongContextMenu_RenameRequested"

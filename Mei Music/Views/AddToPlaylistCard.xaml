@@ -173,7 +173,7 @@
                                                            FontWeight="SemiBold"
                                                            Foreground="#3A4356"
                                                            TextTrimming="CharacterEllipsis"/>
-                                                <TextBlock Text="{Binding Playlist.SongNames.Count, StringFormat={}{0} songs}"
+                                                <TextBlock Text="{Binding SongCount, StringFormat={}{0} songs}"
                                                            FontSize="11"
                                                            Foreground="#7A8393"/>
                                             </StackPanel>

@@ -924,16 +924,25 @@ namespace Mei_Music
         }
 
         /// <summary>
+        /// Opens the song context menu for the given song and anchor.
+        /// The label and behavior of the destructive action are driven by view-model state.
+        /// </summary>
+        private void OpenSongContextMenuForSong(Song song, FrameworkElement? anchorElement, Point anchorPointInWindow)
+        {
+            SelectSongForContextMenu(song);
+            _contextMenuTargetSong = song;
+            OpenSongContextMenuAtWindowPoint(anchorPointInWindow, anchorElement ?? UploadedSongList);
+        }
+
+        /// <summary>
         /// Opens the song context card anchored to the song-row option button.
         /// </summary>
         private void SongOptionButton_Click(object sender, RoutedEventArgs e)
         {
             if (sender is Button btn && btn.DataContext is Song song)
             {
-                SelectSongForContextMenu(song);
-                _contextMenuTargetSong = song;
                 Point anchorPoint = btn.TranslatePoint(new Point(btn.ActualWidth, btn.ActualHeight), this);
-                OpenSongContextMenuAtWindowPoint(anchorPoint, btn);
+                OpenSongContextMenuForSong(song, btn, anchorPoint);
             }
         }
 
@@ -942,12 +951,10 @@ namespace Mei_Music
         /// </summary>
         private void SongRow_OptionsRequested(object? sender, SongOptionsRequestedEventArgs e)
         {
-            SelectSongForContextMenu(e.Song);
-            _contextMenuTargetSong = e.Song;
             Point anchorPoint = e.AnchorElement != null
                 ? e.AnchorElement.TranslatePoint(new Point(e.AnchorElement.ActualWidth, e.AnchorElement.ActualHeight), this)
                 : Mouse.GetPosition(this);
-            OpenSongContextMenuAtWindowPoint(anchorPoint, e.AnchorElement ?? UploadedSongList);
+            OpenSongContextMenuForSong(e.Song, e.AnchorElement ?? UploadedSongList, anchorPoint);
         }
 
         /// <summary>
@@ -1027,9 +1034,8 @@ namespace Mei_Music
                 return;
             }
 
-            _contextMenuTargetSong = song;
             Point anchorPoint = e.GetPosition(this);
-            OpenSongContextMenuAtWindowPoint(anchorPoint, UploadedSongList);
+            OpenSongContextMenuForSong(song, UploadedSongList, anchorPoint);
             e.Handled = true;
         }
 
@@ -1264,7 +1270,20 @@ namespace Mei_Music
             CloseSongContextMenu(clearTarget: true);
             if (targetSong != null)
             {
-                ViewModel.DeleteSongCommand.Execute(targetSong);
+                switch (ViewModel.CurrentSongDeleteMode)
+                {
+                    case SongContextDeleteMode.DeleteFromLibrary:
+                        ViewModel.DeleteSongCommand.Execute(targetSong);
+                        break;
+                    case SongContextDeleteMode.RemoveFromLiked:
+                        ViewModel.ToggleLikeCommand.Execute(targetSong);
+                        break;
+                    case SongContextDeleteMode.RemoveFromPlaylist:
+                        ViewModel.RemoveSongFromActivePlaylistCommand.Execute(targetSong);
+                        break;
+                    default:
+                        break;
+                }
             }
         }
 

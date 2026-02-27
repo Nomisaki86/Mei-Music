@@ -27,6 +27,9 @@ namespace Mei_Music.Converters
                 bitmap.BeginInit();
                 bitmap.UriSource = new Uri(path);
                 bitmap.CacheOption = BitmapCacheOption.OnLoad;
+                // Ensure we always read the latest bytes from disk even
+                // when the URI string stays the same (e.g. playlist icon path).
+                bitmap.CreateOptions = BitmapCreateOptions.IgnoreImageCache;
                 bitmap.EndInit();
                 return bitmap;
             }

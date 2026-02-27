@@ -10,6 +10,23 @@ namespace Mei_Music
     /// </summary>
     public partial class SongContextMenuCard : UserControl
     {
+        /// <summary>
+        /// Label shown for the destructive action row.
+        /// Typically \"Delete Song\" in All view, \"Remove from Liked\" or \"Remove from Playlist\" in other views.
+        /// </summary>
+        public string DeleteActionLabel
+        {
+            get { return (string)GetValue(DeleteActionLabelProperty); }
+            set { SetValue(DeleteActionLabelProperty, value); }
+        }
+
+        public static readonly DependencyProperty DeleteActionLabelProperty =
+            DependencyProperty.Register(
+                nameof(DeleteActionLabel),
+                typeof(string),
+                typeof(SongContextMenuCard),
+                new PropertyMetadata("Delete Song"));
+
         /// <summary>Raised when user chooses "Add to Playlist".</summary>
         public event EventHandler? AddRequested;
 

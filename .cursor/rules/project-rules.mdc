@@ -20,6 +20,6 @@ alwaysApply: true
 - **Cleanup Temporary Files**: Remove temporary logs and scratch artifacts before finishing.
 
 ## Delivery format
-- **Changed files with line ranges**: When files are edited, report each changed file with what changed and the affected line range(s).
+- **Changed files with line ranges**: When files are edited, report each changed file with what changed and the affected line range(s), clicking on the file should bring me to that file.
 - **Readable per-file layout**: Use bullet points; put the clickable path on one line and the explanation on the next line. Include line numbers for each change.
 
