@@ -64,7 +64,7 @@ namespace Mei_Music
     /// Overlay card for creating playlists.
     /// Handles title input, icon selection/cropping, drag-move, and emits high-level events.
     /// </summary>
-    public partial class CreatePlaylistCard : UserControl
+    public partial class CreatePlaylistCard : DraggableOverlayCardBase
     {
         /// <summary>
         /// Raised when user confirms playlist creation.
@@ -75,16 +75,6 @@ namespace Mei_Music
         /// Raised when user requests to close the card.
         /// </summary>
         public event EventHandler? CloseRequested;
-
-        /// <summary>
-        /// Raised continuously while user drags the header to move the card.
-        /// </summary>
-        public event EventHandler<DragMoveDeltaEventArgs>? DragMoveDelta;
-
-        /// <summary>
-        /// Last mouse position captured for drag delta computation.
-        /// </summary>
-        private Point _dragStart;
 
         /// <summary>
         /// Currently selected/cropped icon path for playlist creation.
@@ -99,39 +89,6 @@ namespace Mei_Music
             InitializeComponent();
             UpdateCharCount();
             UpdateCreateButtonState();
-        }
-
-        /// <summary>
-        /// Starts header drag operation by storing initial pointer position.
-        /// </summary>
-        private void HeaderDragBorder_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
-        {
-            _dragStart = e.GetPosition(null);
-            HeaderDragBorder.CaptureMouse();
-        }
-
-        /// <summary>
-        /// Publishes drag delta while header is captured and left button is pressed.
-        /// </summary>
-        private void HeaderDragBorder_MouseMove(object sender, MouseEventArgs e)
-        {
-            if (HeaderDragBorder.IsMouseCaptured && e.LeftButton == MouseButtonState.Pressed)
-            {
-                Point current = e.GetPosition(null);
-                double dx = current.X - _dragStart.X;
-                double dy = current.Y - _dragStart.Y;
-                _dragStart = current;
-                DragMoveDelta?.Invoke(this, new DragMoveDeltaEventArgs(dx, dy));
-            }
-        }
-
-        /// <summary>
-        /// Ends header drag operation.
-        /// </summary>
-        private void HeaderDragBorder_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
-        {
-            if (HeaderDragBorder.IsMouseCaptured)
-                HeaderDragBorder.ReleaseMouseCapture();
         }
 
         /// <summary>

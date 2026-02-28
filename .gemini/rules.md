@@ -1,6 +1,14 @@
----
-alwaysApply: true
----
+# Agent Routing
+
+- Before broad exploration, read `docs/agent-map.md` to identify likely ownership and entry points.
+- Start with likely entry files first; use targeted searches instead of repository-wide scans.
+- First pass default: about 6 files and 2-3 targeted searches, then reassess.
+- If still unclear, ask one focused clarification question or expand incrementally when required.
+- Avoid repeating identical reads/searches when recent output is still valid.
+- For small edits in known files, skip routing exploration and implement directly.
+- If routing/ownership changes because of your edits, update `docs/agent-map.md` in the same task.
+- In the final response, include one line: `Agent map update: updated|not needed`.
+
 # Project Rules
 
 ## Product and UX
@@ -24,3 +32,14 @@ alwaysApply: true
 
 - **Readable per-file layout**: Use bullet points; put the clickable path on one line and the explanation on the next line. Include line numbers for each change.
 
+# Token Budget Defaults
+
+- Be concise by default; expand only on request.
+- Keep progress updates brief for simple tasks; use periodic updates for longer tasks.
+- Prefer targeted searches/reads and avoid repeating the same lookups.
+- Read focused file ranges first, then expand only if needed.
+- Batch independent read/search steps when possible.
+- Ask before expensive operations (full builds/tests, broad scans, network-heavy steps) unless the user requested them.
+- For small, low-risk edits, skip full build/test by default and state what was not run.
+- If scope is unclear, ask one focused question before broad exploration.
+- If the user explicitly requests deep review/validation, prioritize completeness over token savings.

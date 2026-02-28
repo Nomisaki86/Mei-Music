@@ -26,7 +26,7 @@ namespace Mei_Music
     /// <summary>
     /// Overlay card that lets the user pick a playlist or create a new playlist.
     /// </summary>
-    public partial class AddToPlaylistCard : UserControl
+    public partial class AddToPlaylistCard : DraggableOverlayCardBase
     {
         private sealed class PlaylistRowItem
         {
@@ -62,11 +62,9 @@ namespace Mei_Music
         public event EventHandler? CloseRequested;
         public event EventHandler? CreatePlaylistRequested;
         public event EventHandler<PlaylistSelectedEventArgs>? PlaylistSelected;
-        public event EventHandler<DragMoveDeltaEventArgs>? DragMoveDelta;
 
         private IReadOnlyList<CreatedPlaylist> _playlists = Array.Empty<CreatedPlaylist>();
         private bool _isSyncingOverlayScrollBar;
-        private Point _dragStart;
 
         public AddToPlaylistCard()
         {
@@ -153,32 +151,6 @@ namespace Mei_Music
             }
 
             CardScrollViewer?.ScrollToVerticalOffset(e.NewValue);
-        }
-
-        private void HeaderDragBorder_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
-        {
-            _dragStart = e.GetPosition(null);
-            HeaderDragBorder.CaptureMouse();
-        }
-
-        private void HeaderDragBorder_MouseMove(object sender, MouseEventArgs e)
-        {
-            if (HeaderDragBorder.IsMouseCaptured && e.LeftButton == MouseButtonState.Pressed)
-            {
-                Point current = e.GetPosition(null);
-                double dx = current.X - _dragStart.X;
-                double dy = current.Y - _dragStart.Y;
-                _dragStart = current;
-                DragMoveDelta?.Invoke(this, new DragMoveDeltaEventArgs(dx, dy));
-            }
-        }
-
-        private void HeaderDragBorder_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
-        {
-            if (HeaderDragBorder.IsMouseCaptured)
-            {
-                HeaderDragBorder.ReleaseMouseCapture();
-            }
         }
 
         private void CloseButton_Click(object sender, RoutedEventArgs e)

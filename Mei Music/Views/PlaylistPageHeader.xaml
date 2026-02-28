@@ -1,0 +1,129 @@
+<UserControl x:Class="Mei_Music.PlaylistPageHeader"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:Mei_Music.ViewModels"
+             xmlns:converters="clr-namespace:Mei_Music.Converters"
+             x:Name="Root"
+             Background="Transparent">
+
+    <UserControl.Resources>
+        <converters:PathToImageSourceConverter x:Key="PathToImageSourceConverter"/>
+    </UserControl.Resources>
+
+    <Grid x:Name="RootGrid" Margin="12,24,24,8">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition x:Name="IconColumn" Width="170"/>
+            <ColumnDefinition Width="*"/>
+        </Grid.ColumnDefinitions>
+
+        <!-- Icon card -->
+        <Border x:Name="IconCardBorder" Grid.Column="0"
+                Width="150"
+                Height="150"
+                CornerRadius="22"
+                Background="#D2D9E3"
+                SnapsToDevicePixels="True"
+                UseLayoutRounding="True">
+            <Grid>
+                <!-- All songs icon -->
+                <Grid>
+                    <Grid.Style>
+                        <Style TargetType="Grid">
+                            <Setter Property="Visibility" Value="Collapsed"/>
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding CurrentPage}" Value="{x:Static vm:RightPanelPage.AllSongs}">
+                                    <Setter Property="Visibility" Value="Visible"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Grid.Style>
+                    <Rectangle x:Name="AllSongsGlyph" Width="72"
+                               Height="72"
+                               HorizontalAlignment="Center"
+                               VerticalAlignment="Center"
+                               RenderOptions.BitmapScalingMode="HighQuality"
+                               SnapsToDevicePixels="True">
+                        <Rectangle.Fill>
+                            <SolidColorBrush Color="#FFFFFFFF" Opacity="0.95"/>
+                        </Rectangle.Fill>
+                        <Rectangle.OpacityMask>
+                            <ImageBrush ImageSource="/Resources/Images/music-player.png"
+                                        Stretch="Uniform"
+                                        RenderOptions.BitmapScalingMode="HighQuality"/>
+                        </Rectangle.OpacityMask>
+                    </Rectangle>
+                </Grid>
+
+                <!-- Liked songs icon -->
+                <Grid>
+                    <Grid.Style>
+                        <Style TargetType="Grid">
+                            <Setter Property="Visibility" Value="Collapsed"/>
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding CurrentPage}" Value="{x:Static vm:RightPanelPage.LikedSongs}">
+                                    <Setter Property="Visibility" Value="Visible"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Grid.Style>
+                    <Rectangle x:Name="LikedSongsGlyph" Width="72"
+                               Height="72"
+                               HorizontalAlignment="Center"
+                               VerticalAlignment="Center"
+                               RenderOptions.BitmapScalingMode="HighQuality"
+                               SnapsToDevicePixels="True">
+                        <Rectangle.Fill>
+                            <SolidColorBrush Color="#FFFFFFFF" Opacity="0.95"/>
+                        </Rectangle.Fill>
+                        <Rectangle.OpacityMask>
+                            <ImageBrush ImageSource="/Resources/Images/heart-filled.png"
+                                        Stretch="Uniform"
+                                        RenderOptions.BitmapScalingMode="HighQuality"/>
+                        </Rectangle.OpacityMask>
+                    </Rectangle>
+                </Grid>
+
+                <!-- Playlist icon (image clipped to rounded corners via ImageBrush background) -->
+                <Border x:Name="PlaylistImageBorder" Width="150"
+                        Height="150"
+                        CornerRadius="22">
+                    <Border.Style>
+                        <Style TargetType="Border">
+                            <Setter Property="Visibility" Value="Collapsed"/>
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding CurrentPage}" Value="{x:Static vm:RightPanelPage.PlaylistSongs}">
+                                    <Setter Property="Visibility" Value="Visible"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Border.Style>
+
+                    <Border.Background>
+                        <ImageBrush ImageSource="{Binding ActivePlaylist.IconPath, Converter={StaticResource PathToImageSourceConverter}}"
+                                    Stretch="UniformToFill"
+                                    RenderOptions.BitmapScalingMode="HighQuality"/>
+                    </Border.Background>
+                </Border>
+            </Grid>
+        </Border>
+
+        <!-- Text content -->
+        <StackPanel x:Name="TextStackPanel" Grid.Column="1"
+                    Margin="12,24,8,8"
+                    VerticalAlignment="Top">
+            <TextBlock Text="{Binding CurrentHeaderTitle}"
+                       FontSize="20"
+                       FontWeight="Bold"
+                       Foreground="#222834"
+                       TextTrimming="CharacterEllipsis"/>
+            <TextBlock Text="{Binding CurrentHeaderDescription}"
+                       Margin="0,6,0,0"
+                       FontSize="13"
+                       Foreground="#6B7280"
+                       TextWrapping="Wrap"
+                       TextTrimming="CharacterEllipsis"
+                       MaxHeight="40"/>
+        </StackPanel>
+    </Grid>
+</UserControl>
+

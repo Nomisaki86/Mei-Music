@@ -288,6 +288,15 @@
         </Style.Resources>
     </Style>
 
+    <!-- ScrollViewer style with always-visible theme scrollbar (e.g. for Settings page). -->
+    <Style x:Key="PanelListScrollViewerVisibleStyle" TargetType="ScrollViewer">
+        <Setter Property="VerticalScrollBarVisibility" Value="Auto"/>
+        <Setter Property="HorizontalScrollBarVisibility" Value="Disabled"/>
+        <Style.Resources>
+            <Style TargetType="ScrollBar" BasedOn="{StaticResource CustomScrollBar}"/>
+        </Style.Resources>
+    </Style>
+
     <!-- Optional ListBox template that wires the custom scrollbar style. -->
     <Style TargetType="ListBox" x:Key="CustomListBox">
         <Setter Property="Template">

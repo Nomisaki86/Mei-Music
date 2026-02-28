@@ -1,4 +1,5 @@
 using System.Windows;
+using System.Windows.Media;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Mei_Music.Services;
@@ -48,6 +49,9 @@ namespace Mei_Music
         protected override async void OnStartup(StartupEventArgs e)
         {
             await _host.StartAsync();
+
+            // Keep a single source of truth (AppUiSettings) while letting XAML bind to a shared brush resource.
+            Current.Resources["NowPlayingAccentBrush"] = new SolidColorBrush(AppUiSettings.NowPlayingAccentColor);
 
             var mainWindow = _host.Services.GetRequiredService<MainWindow>();
             mainWindow.Show();

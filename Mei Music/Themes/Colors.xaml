@@ -33,4 +33,7 @@
     <SolidColorBrush x:Key="SliderThumb.Track.Background" Color="#FFE7EAEA"/>
     <SolidColorBrush x:Key="SliderThumb.Track.Border" Color="#FFD6D6D6"/>
 
+    <!-- Now-playing accent used by the playing indicator bars and song title. -->
+    <SolidColorBrush x:Key="NowPlayingAccentBrush" Color="#FFBC2E2E"/>
+
 </ResourceDictionary>

@@ -216,7 +216,7 @@
                     <Style TargetType="Border">
                         <Setter Property="Width" Value="3"/>
                         <Setter Property="Height" Value="12"/>
-                        <Setter Property="Background" Value="#FFBC2E2E"/>
+                        <Setter Property="Background" Value="{DynamicResource NowPlayingAccentBrush}"/>
                         <Setter Property="Margin" Value="2,0,0,0"/>
                         <Setter Property="CornerRadius" Value="1.5,1.5,0,0"/>
                         <!--Snapps element to physical screen pixels, solve stretched width bars-->
@@ -308,7 +308,21 @@
                        Margin="8,0,26,0"
                        TextAlignment="Left"
                        FontSize="13.5"
-                       TextTrimming="CharacterEllipsis"/>
+                       TextTrimming="CharacterEllipsis">
+                <TextBlock.Style>
+                    <Style TargetType="TextBlock">
+                        <Style.Triggers>
+                            <MultiDataTrigger>
+                                <MultiDataTrigger.Conditions>
+                                    <Condition Binding="{Binding Song.IsCurrent, ElementName=Root}" Value="True"/>
+                                    <Condition Binding="{Binding DataContext.IsPlaying, RelativeSource={RelativeSource AncestorType=Window}}" Value="True"/>
+                                </MultiDataTrigger.Conditions>
+                                <Setter Property="Foreground" Value="{DynamicResource NowPlayingAccentBrush}"/>
+                            </MultiDataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </TextBlock.Style>
+            </TextBlock>
 
             <StackPanel Orientation="Horizontal"
                         HorizontalAlignment="Right"

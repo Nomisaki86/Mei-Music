@@ -27,6 +27,8 @@
         <converters:BoolToVisibilityConverter x:Key="BoolToVisibilityConverter"/>
         <converters:InverseBoolToVisibilityConverter x:Key="InverseBoolToVisibilityConverter"/>
         <converters:InverseBooleanConverter x:Key="InverseBooleanConverter"/>
+        <converters:PageEqualsConverter x:Key="PageEqualsConverter"/>
+        <converters:PlaylistIsSelectedConverter x:Key="PlaylistIsSelectedConverter"/>
     </Window.Resources>
 
     <WindowChrome.WindowChrome>
@@ -51,8 +53,33 @@
 
                 <!-- Right Side (window control buttons) -->
                 <StackPanel Orientation="Horizontal" DockPanel.Dock="Right" Margin="0,0,10,0" HorizontalAlignment="Right" VerticalAlignment="Center">
+                    <!-- Settings button -->
+                    <Button x:Name="SettingsButton"
+                            Command="{Binding ToggleSettingsCommand}"
+                            ToolTip="Settings"
+                            Style="{StaticResource TitleBarButtonStyle}">
+                        <Rectangle Width="14"
+                                   Height="14"
+                                   Fill="White"
+                                   RenderOptions.BitmapScalingMode="HighQuality"
+                                   SnapsToDevicePixels="True">
+                            <Rectangle.OpacityMask>
+                                <ImageBrush ImageSource="/Resources/Images/setting.png"
+                                            Stretch="Uniform"
+                                            RenderOptions.BitmapScalingMode="HighQuality"/>
+                            </Rectangle.OpacityMask>
+                        </Rectangle>
+                    </Button>
+
+                    <!-- Vertical separator -->
+                    <Border Width="1"
+                            Height="18"
+                            Margin="8,0,8,0"
+                            Background="#323842"
+                            VerticalAlignment="Center"/>
+
                     <Button Content="─" Click="Minimize_Click" Style="{StaticResource TitleBarButtonStyle}" />
-                      <Button Content="☐" Click="Maximize_Click" Style="{StaticResource TitleBarButtonStyle}" />
+                    <Button Content="☐" Click="Maximize_Click" Style="{StaticResource TitleBarButtonStyle}" />
                     <Button Content="✕" Click="Close_Click" Style="{StaticResource TitleBarCloseButtonStyle}" />
                 </StackPanel>
 
@@ -90,6 +117,7 @@
                                  HorizontalAlignment="Stretch"
                                  Margin="0,0,0,6"
                                  Content="All"
+                                 IsChecked="{Binding CurrentPage, Converter={StaticResource PageEqualsConverter}, ConverterParameter={x:Static vm:RightPanelPage.AllSongs}, Mode=OneWay}"
                                  Checked="AllSongsButton_Checked"
                                  ToolTip="Show all songs"
                                  Style="{StaticResource SidebarSelectableCardRadioButtonStyle}">
@@ -116,6 +144,7 @@
                                  HorizontalAlignment="Stretch"
                                  Margin="0,0,0,8"
                                  Content="Liked"
+                                 IsChecked="{Binding CurrentPage, Converter={StaticResource PageEqualsConverter}, ConverterParameter={x:Static vm:RightPanelPage.LikedSongs}, Mode=OneWay}"
                                  Checked="LikedSongsButton_Checked"
                                  ToolTip="Show liked songs"
                                  Style="{StaticResource SidebarSelectableCardRadioButtonStyle}">
@@ -267,6 +296,13 @@
                                                     Style="{StaticResource SidebarPlaylistCardButtonStyle}"
                                                     Checked="PlaylistItem_Click"
                                                     MouseRightButtonUp="PlaylistItem_RightClick">
+                                                <RadioButton.IsChecked>
+                                                    <MultiBinding Converter="{StaticResource PlaylistIsSelectedConverter}" Mode="OneWay">
+                                                        <Binding Path="DataContext.CurrentPage" RelativeSource="{RelativeSource AncestorType=Window}"/>
+                                                        <Binding Path="DataContext.ActivePlaylist" RelativeSource="{RelativeSource AncestorType=Window}"/>
+                                                        <Binding Path="DataContext" RelativeSource="{RelativeSource Self}"/>
+                                                    </MultiBinding>
+                                                </RadioButton.IsChecked>
                                                 <RadioButton.Content>
                                                     <Grid>
                                                         <Grid.ColumnDefinitions>
@@ -346,6 +382,9 @@
                                     <Setter Property="Visibility" Value="Visible" />
                                     <Style.Triggers>
                                         <DataTrigger Binding="{Binding CurrentPage}" Value="{x:Static vm:RightPanelPage.EditPlaylist}">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding CurrentPage}" Value="{x:Static vm:RightPanelPage.Settings}">
                                             <Setter Property="Visibility" Value="Collapsed" />
                                         </DataTrigger>
                                     </Style.Triggers>
@@ -438,6 +477,9 @@
                                         <DataTrigger Binding="{Binding CurrentPage}" Value="{x:Static vm:RightPanelPage.EditPlaylist}">
                                             <Setter Property="Visibility" Value="Collapsed" />
                                         </DataTrigger>
+                                        <DataTrigger Binding="{Binding CurrentPage}" Value="{x:Static vm:RightPanelPage.Settings}">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                        </DataTrigger>
                                     </Style.Triggers>
                                 </Style>
                             </Grid.Style>
@@ -463,6 +505,15 @@
 
                                 <ListView.ItemsSource>
                                     <CompositeCollection>
+                                        <ListViewItem Focusable="False"
+                                                      IsHitTestVisible="False"
+                                                      Margin="4,8,8,0"
+                                                      Padding="0"
+                                                      BorderThickness="0"
+                                                      Background="Transparent">
+                                            <local:PlaylistPageHeader DataContext="{Binding DataContext, ElementName=RootWindow}"/>
+                                        </ListViewItem>
+
                                         <ListViewItem Focusable="False"
                                                       Margin="8,8,8,0"
                                                       Padding="0"
@@ -519,6 +570,23 @@
                                 </Style>
                             </Grid.Style>
                             <local:EditPlaylistPage DataContext="{Binding PlaylistEditor}"/>
+                        </Grid>
+                        
+                        <!-- Settings page (replaces song list while editing) -->
+                        <Grid Grid.Row="1"
+                              Grid.RowSpan="2"
+                              Background="#FFE9ECF1">
+                            <Grid.Style>
+                                <Style TargetType="Grid">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding CurrentPage}" Value="{x:Static vm:RightPanelPage.Settings}">
+                                            <Setter Property="Visibility" Value="Visible" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Grid.Style>
+                            <local:SettingsPage />
                         </Grid>
 
 
@@ -753,10 +821,5 @@
                                            EditRequested="ContextMenuEditPlaylist_Click"
                                            DeleteRequested="ContextMenuDeletePlaylist_Click"/>
         </Grid>
-
-
-
     </Grid>
 </Window>
-
-

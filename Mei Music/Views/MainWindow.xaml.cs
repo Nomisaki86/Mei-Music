@@ -145,7 +145,6 @@ namespace Mei_Music
 
             // Initialize right-panel navigation state to All songs.
             viewModel.ShowAllSongs();
-            AllSongsButton.IsChecked = true;
 
             ViewModel.RefreshSongsInUI();
             LoadSongIndex();
@@ -822,12 +821,10 @@ namespace Mei_Music
 
             if (wasViewingThisPlaylist)
             {
-                ApplyAllSongsView();
-            }
-
-            if (ViewModel.CreatedPlaylists.Count == 0 && LikedSongsButton != null)
-            {
-                LikedSongsButton.IsChecked = true;
+                if (ViewModel.CreatedPlaylists.Count == 0)
+                    ViewModel.ShowLikedSongs();
+                else
+                    ViewModel.ShowAllSongs();
             }
         }
 
@@ -1180,20 +1177,20 @@ namespace Mei_Music
             switch (AppUiSettings.ToastPlacementMode)
             {
                 case AppUiSettings.InlineToastPlacementMode.MouseAnchored:
-                {
-                    Point mousePoint = Mouse.GetPosition(this);
-                    left = mousePoint.X - (toastWidth / 2) + AppUiSettings.MouseAnchoredToastOffsetX;
-                    top = mousePoint.Y - (toastHeight / 2) + AppUiSettings.MouseAnchoredToastOffsetY;
-                    break;
-                }
+                    {
+                        Point mousePoint = Mouse.GetPosition(this);
+                        left = mousePoint.X - (toastWidth / 2) + AppUiSettings.MouseAnchoredToastOffsetX;
+                        top = mousePoint.Y - (toastHeight / 2) + AppUiSettings.MouseAnchoredToastOffsetY;
+                        break;
+                    }
                 case AppUiSettings.InlineToastPlacementMode.BottomCenterAbovePlayBar:
-                {
-                    Point playBarTopLeft = PlayBarHost?.TranslatePoint(new Point(0, 0), this) ?? new Point(0, ActualHeight - 68);
-                    double playBarTop = playBarTopLeft.Y;
-                    left = ((ActualWidth - toastWidth) / 2) + AppUiSettings.BottomCenterToastOffsetX;
-                    top = (playBarTop - toastHeight - 10) + AppUiSettings.BottomCenterToastOffsetY;
-                    break;
-                }
+                    {
+                        Point playBarTopLeft = PlayBarHost?.TranslatePoint(new Point(0, 0), this) ?? new Point(0, ActualHeight - 68);
+                        double playBarTop = playBarTopLeft.Y;
+                        left = ((ActualWidth - toastWidth) / 2) + AppUiSettings.BottomCenterToastOffsetX;
+                        top = (playBarTop - toastHeight - 10) + AppUiSettings.BottomCenterToastOffsetY;
+                        break;
+                    }
                 default:
                     left = (ActualWidth - toastWidth) / 2;
                     top = (ActualHeight - toastHeight) / 2;
@@ -1404,7 +1401,10 @@ namespace Mei_Music
                     }
                     break;
                 case RightPanelPage.EditPlaylist:
-                    // The EditPlaylistPage visibility is driven by XAML; no additional work here.
+                    // The EditPlaylistPage visibility is driven by XAML; sidebar selection is driven by CurrentPage bindings.
+                    break;
+                case RightPanelPage.Settings:
+                    // Settings page visibility is driven by XAML; sidebar selection is driven by CurrentPage bindings.
                     break;
             }
         }
@@ -1537,10 +1537,6 @@ namespace Mei_Music
             ViewModel.SetActivePlaylist(playlist);
             ViewModel.CurrentHeaderTitle = playlist.Title;
 
-            // Uncheck All / Liked radio buttons
-            AllSongsButton.IsChecked = false;
-            LikedSongsButton.IsChecked = false;
-
             if (SongDataContainer != null)
             {
                 SongDataContainer.Collection = ViewModel.ActivePlaylistSongs;
@@ -1562,6 +1558,11 @@ namespace Mei_Music
         {
             if (sender is not RadioButton btn) return;
             if (btn.DataContext is not CreatedPlaylist playlist) return;
+
+            // When Edit Playlist is open, the binding sets this playlist's IsChecked = true to highlight it.
+            // That raises Checked; do not treat that as "navigate to playlist" or we leave the edit page.
+            if (ViewModel.CurrentPage == RightPanelPage.EditPlaylist && ReferenceEquals(ViewModel.ActivePlaylist, playlist))
+                return;
 
             ViewModel.ShowPlaylist(playlist);
         }
@@ -2159,7 +2160,11 @@ namespace Mei_Music
 
             if (ShouldDismissContextMenu(PlaylistContextMenuOverlay, PlaylistContextMenuCard))
             {
-                ClosePlaylistContextMenu();
+                // Don't dismiss when the click is inside the card so Edit/Delete can run with target set.
+                bool clickInsideCard = e.OriginalSource is System.Windows.DependencyObject dep
+                    && PlaylistContextMenuCard.IsAncestorOf(dep);
+                if (!clickInsideCard)
+                    ClosePlaylistContextMenu();
             }
 
             // Close the Popup if the click is outside the Popup
