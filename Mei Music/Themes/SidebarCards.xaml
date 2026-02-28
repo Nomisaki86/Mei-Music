@@ -9,6 +9,67 @@
         - playlist list entries
     -->
 
+    <!-- Create playlist "+" button: circular background, plus.png icon with lighter tint when not hovered. -->
+    <Style x:Key="SidebarCreateButtonStyle" TargetType="Button" BasedOn="{StaticResource BaseButtonStyle}">
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="Width" Value="20"/>
+        <Setter Property="Height" Value="20"/>
+        <Setter Property="Padding" Value="0"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Grid>
+                        <Ellipse x:Name="CircleBg"
+                                 Fill="#D2D9E3"
+                                 Width="15"
+                                 Height="15"/>
+                        <Border x:Name="IconHost"
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center"
+                                Width="8" Height="8">
+                            <Rectangle x:Name="PlusIcon"
+                                       Width="8"
+                                       Height="8"
+                                       RenderOptions.BitmapScalingMode="HighQuality"
+                                       SnapsToDevicePixels="True"
+                                       Fill="#6B7380">
+                                <Rectangle.OpacityMask>
+                                    <ImageBrush ImageSource="/Resources/Images/plus.png"
+                                                Stretch="Uniform"
+                                                RenderOptions.BitmapScalingMode="HighQuality"/>
+                                </Rectangle.OpacityMask>
+                                <Rectangle.Style>
+                                    <Style TargetType="Rectangle">
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsMouseOver, RelativeSource={RelativeSource AncestorType=Button}}" Value="True">
+                                                <Setter Property="Fill" Value="{StaticResource SidebarGlyphBrush}"/>
+                                            </DataTrigger>
+                                            <DataTrigger Binding="{Binding IsPressed, RelativeSource={RelativeSource AncestorType=Button}}" Value="True">
+                                                <Setter Property="Fill" Value="{StaticResource SidebarGlyphHoverBrush}"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Rectangle.Style>
+                            </Rectangle>
+                        </Border>
+                    </Grid>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="CircleBg" Property="Fill" Value="{StaticResource SidebarItemHoverIconBackground}"/>
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="CircleBg" Property="Fill" Value="{StaticResource SidebarItemHoverBackground}"/>
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter TargetName="CircleBg" Property="Opacity" Value="1"/>
+                            <Setter TargetName="IconHost" Property="Opacity" Value="1"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
     <!-- Action-style sidebar card button (used for create-first-playlist and similar actions). -->
     <Style x:Key="SidebarActionCardButtonStyle" TargetType="Button" BasedOn="{StaticResource BaseButtonStyle}">
         <Setter Property="Padding" Value="7,6"/>

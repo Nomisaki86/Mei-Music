@@ -198,6 +198,11 @@ namespace Mei_Music.ViewModels
         /// </summary>
         public bool IsSeeking { get; set; }
 
+        /// <summary>
+        /// Last whole-second value shown for progress/time. Used to cap display advance to 1s per tick so the timer never skips a second when ticks batch.
+        /// </summary>
+        private int _lastDisplayedSeconds = -1;
+
         [ObservableProperty]
         private double _playProgress;
 
@@ -274,13 +279,17 @@ namespace Mei_Music.ViewModels
         public void Seek(double positionSeconds)
         {
             _audioPlayer.Position = TimeSpan.FromSeconds(positionSeconds);
-            CurrentTimeText = _audioPlayer.Position.ToString(@"mm\:ss");
+            int wholeSeconds = (int)Math.Floor(positionSeconds);
+            _lastDisplayedSeconds = wholeSeconds;
+            CurrentTimeText = TimeSpan.FromSeconds(wholeSeconds).ToString(@"mm\:ss");
+            PlayProgress = wholeSeconds;
         }
 
         // --- Event Handlers ---
 
         private void OnMediaOpened(object? sender, EventArgs e)
         {
+            _lastDisplayedSeconds = -1;
             TimeSpan totalDuration = _audioPlayer.NaturalDuration;
             TotalTimeText = totalDuration.ToString(@"mm\:ss");
             TotalTimeSeconds = totalDuration.TotalSeconds;
@@ -303,8 +312,13 @@ namespace Mei_Music.ViewModels
             // to prevent the binding from snapping back to the old position.
             if (IsSeeking) return;
 
-            CurrentTimeText = position.ToString(@"mm\:ss");
-            PlayProgress = position.TotalSeconds;
+            int newWholeSeconds = (int)Math.Floor(position.TotalSeconds);
+            // Cap advance to 1 second per tick so we never skip (e.g. 28 -> 30) when ticks batch.
+            int displaySeconds = Math.Min(newWholeSeconds, _lastDisplayedSeconds + 1);
+            _lastDisplayedSeconds = displaySeconds;
+
+            CurrentTimeText = TimeSpan.FromSeconds(displaySeconds).ToString(@"mm\:ss");
+            PlayProgress = displaySeconds;
         }
 
         /// <summary>

@@ -235,27 +235,12 @@
 
                         <Button x:Name="CreateAlbumButton"
                                 Grid.Column="1"
-                                Width="24"
-                                Height="24"
                                 Margin="8,0,0,0"
                                 ToolTip="Create playlist"
-                                Background="Transparent"
-                                BorderBrush="Transparent"
+                                Style="{StaticResource SidebarCreateButtonStyle}"
                                 Cursor="Hand"
                                 VerticalAlignment="Center"
-                                Click="OpenCreatePlaylistDialog">
-                            <Grid>
-                                <Ellipse Fill="#DEE3EA"
-                                         Width="24"
-                                         Height="24"/>
-                                <TextBlock Text="+"
-                                           Foreground="#6B7380"
-                                           FontSize="14"
-                                           FontWeight="Bold"
-                                           HorizontalAlignment="Center"
-                                           VerticalAlignment="Center"/>
-                            </Grid>
-                        </Button>
+                                Click="OpenCreatePlaylistDialog"/>
                     </Grid>
 
                     <!-- When no playlists: show big Create card. When any exist: show list. Header + always opens create dialog. -->
@@ -485,7 +470,7 @@
                             </Grid.Style>
                             <!-- Song ListView -->
                             <ListView x:Name="UploadedSongList"
-                                      Background="#FFE9ECF1"
+                                      Background="#FFEBEEF3"
                                       HorizontalContentAlignment="Stretch"
                                       VerticalContentAlignment="Stretch"
                                       ScrollViewer.HorizontalScrollBarVisibility="Disabled"

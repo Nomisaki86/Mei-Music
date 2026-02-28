@@ -23,6 +23,7 @@
     <None Remove="Resources\Images\music-player.png" />
     <None Remove="Resources\Images\next_button.png" />
     <None Remove="Resources\Images\option.png" />
+    <None Remove="Resources\Images\plus.png" />
     <None Remove="Resources\Images\previous_button.png" />
     <None Remove="Resources\Images\close.png" />
     <None Remove="Resources\Images\setting.png" />
@@ -60,6 +61,7 @@
     <Resource Include="Resources\Images\option.png" />
     <Resource Include="Resources\Images\play_button.png" />
     <Resource Include="Resources\Images\pause_button.png" />
+    <Resource Include="Resources\Images\plus.png" />
     <Resource Include="Resources\Images\previous_button.png" />
     <Resource Include="Resources\Images\close.png" />
     <Resource Include="Resources\Images\setting.png" />

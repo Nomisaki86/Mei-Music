@@ -960,7 +960,7 @@ namespace Mei_Music
         /// </summary>
         private void SongRow_PlayPauseRequested(object? sender, SongPlayPauseRequestedEventArgs e)
         {
-            playbackCoordinator.SetPlaybackList(GetCurrentSongList() ?? ViewModel.Songs);
+            playbackCoordinator.SetPlaybackList(GetPlaybackListForSetting());
 
             _suppressSelectionChanged = true;
             try
@@ -1424,6 +1424,21 @@ namespace Mei_Music
         }
 
         /// <summary>
+        /// Returns a list suitable for setting as the playback list. When the current list is
+        /// ActivePlaylistSongs, returns a snapshot so playback can advance to the next song after
+        /// the user switches to All/Liked (where ActivePlaylistSongs gets cleared).
+        /// </summary>
+        private IList GetPlaybackListForSetting()
+        {
+            var list = GetCurrentSongList() ?? ViewModel.Songs;
+            if (list == null || list.Count == 0)
+                return (IList)(ViewModel.Songs ?? new ObservableCollection<Song>());
+            if (ReferenceEquals(list, ViewModel.ActivePlaylistSongs))
+                return new List<Song>(ViewModel.ActivePlaylistSongs);
+            return list;
+        }
+
+        /// <summary>
         /// After changing the list (All/Liked) or after Prev/Next, sync selection to the currently playing song.
         /// If CurrentSong is in the visible list, select it; otherwise clear selection so no row is highlighted.
         /// Does not restart playback.
@@ -1812,7 +1827,7 @@ namespace Mei_Music
             if (UploadedSongList.SelectedItem is not Song selectedSong)
                 return;
 
-            playbackCoordinator.SetPlaybackList(GetCurrentSongList() ?? ViewModel.Songs);
+            playbackCoordinator.SetPlaybackList(GetPlaybackListForSetting());
 
             UpdatePlaybackButtonIcon();
             SaveSongIndex();
@@ -1852,7 +1867,7 @@ namespace Mei_Music
                 return;
             }
 
-            playbackCoordinator.SetPlaybackList(GetCurrentSongList() ?? ViewModel.Songs);
+            playbackCoordinator.SetPlaybackList(GetPlaybackListForSetting());
             bool isCurrentSong = playbackCoordinator.IsCurrentSong(ViewModel.CurrentSong, song);
 
             if (isCurrentSong)
@@ -1937,7 +1952,7 @@ namespace Mei_Music
         {
             if (ViewModel.CurrentSong == null && UploadedSongList.SelectedItem is Song selectedSong)
             {
-                playbackCoordinator.SetPlaybackList(GetCurrentSongList() ?? ViewModel.Songs);
+                playbackCoordinator.SetPlaybackList(GetPlaybackListForSetting());
                 PlaySong(selectedSong);
                 SaveSongIndex();
                 return;
@@ -2350,7 +2365,7 @@ namespace Mei_Music
         {
             if (sender is FrameworkElement fe && fe.DataContext is Song song)
             {
-                playbackCoordinator.SetPlaybackList(GetCurrentSongList() ?? ViewModel.Songs);
+                playbackCoordinator.SetPlaybackList(GetPlaybackListForSetting());
                 PlaySong(song);
                 SaveSongIndex();
             }

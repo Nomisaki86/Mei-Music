@@ -69,6 +69,7 @@
                 <TextBlock Text="Icon" Foreground="#5B6472" FontSize="12" FontWeight="SemiBold" Margin="0,8,0,6"/>
 
                 <Button Command="{Binding PickImageCommand}"
+                        Style="{StaticResource BaseButtonStyle}"
                         Background="Transparent"
                         BorderThickness="0"
                         Padding="0"

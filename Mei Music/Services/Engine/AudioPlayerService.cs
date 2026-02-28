@@ -25,7 +25,7 @@ namespace Mei_Music.Services
         public event EventHandler<TimeSpan>? PositionChanged;
 
         /// <summary>
-        /// Creates the media player, wires media lifecycle events, and starts a 500ms position timer.
+        /// Creates the media player, wires media lifecycle events, and starts a 1s position timer.
         /// </summary>
         public AudioPlayerService()
         {
@@ -33,9 +33,9 @@ namespace Mei_Music.Services
             _mediaPlayer.MediaOpened += OnMediaOpened;
             _mediaPlayer.MediaEnded += OnMediaEnded;
 
-            _timer = new DispatcherTimer
+            _timer = new DispatcherTimer(DispatcherPriority.Normal)
             {
-                Interval = TimeSpan.FromMilliseconds(500)
+                Interval = TimeSpan.FromSeconds(1)
             };
             _timer.Tick += OnTimerTick;
         }
